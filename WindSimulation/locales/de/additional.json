@@ -1,0 +1,21 @@
+{
+    "modules": {
+        "tools": {
+            "windSimulation": {
+                "title": "DCS Simulations",
+                "title_wind": "Wind Simulation",
+                "title_noise": "Noise Simulation",
+                "params_wind": "Wind parameters",
+                "params_noise": "Traffic Noise parameters",
+                "content": "Ich bin das neue DCS Addon",
+                "runSimulation": "Run Simulation",
+                "x500": "X-Achse",
+                "y500": "Y-Achse",
+                "error500": "Folgende Achsen betragen in ihrer Länge mehr als 500m",
+                "correct500": "Möchten Sie die Achsenlänge automatisch anpassen?",
+                "Bestätigen": "Bestätigen",
+                "Ablehnen": "Ablehnen"
+            }
+        }
+    }
+}

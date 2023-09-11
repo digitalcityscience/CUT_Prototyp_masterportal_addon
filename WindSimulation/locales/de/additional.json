@@ -14,7 +14,9 @@
                 "error500": "Folgende Achsen betragen in ihrer Länge mehr als 500m",
                 "correct500": "Möchten Sie die Achsenlänge automatisch anpassen?",
                 "Bestätigen": "Bestätigen",
-                "Ablehnen": "Ablehnen"
+                "Ablehnen": "Ablehnen",
+                "Download": "Download PNG",
+                "zoomToTile": "Zoom map to simulation tile"
             }
         }
     }

@@ -7,6 +7,7 @@ import VectorSource from "ol/source/Vector.js";
 import Polygon, {fromExtent} from "ol/geom/Polygon";
 import GeoJSON from "ol/format/GeoJSON";
 import {getSize, getCenter} from "ol/extent";
+import {transform} from "ol/proj";
 import Feature from "ol/Feature";
 import ApiService from "../services/service.js";
 import Draw from "ol/interaction/Draw.js";
@@ -25,8 +26,10 @@ export default {
             result: {},
             dataSets: [],
             draw: null,
+            square: null,
             activeSet: 0,
             buttonActive: false,
+            squareActive: false,
             drawActive: false,
             showDrawing: true,
             min: 0,
@@ -123,6 +126,7 @@ export default {
                 this.buttonActive = false;
             }
             else {
+                this.squareActive = false;
                 this.buttonActive = true;
 
                 this.draw = new Draw({
@@ -158,6 +162,83 @@ export default {
                 this.map.addInteraction(this.draw);
             }
         },
+        createSquare () {
+            if (this.squareActive) {
+                this.squareActive = false;
+            }
+            else {
+                this.buttonActive = false;
+                this.squareActive = true;
+
+                const maxEdgeLength = 500;
+
+                this.square = new Draw({
+                    source: this.source,
+                    type: "Circle",
+                    geometryFunction: function (coordinates, geometry) {
+                        const center = coordinates[0],
+                            last = coordinates[1],
+                            dx = center[0] - last[0],
+                            dy = center[1] - last[1],
+                            radius = Math.sqrt(dx * dx + dy * dy),
+
+                            // Calculate the restricted distance based on the maximum edge length
+                            restrictedRadius = Math.min(radius, maxEdgeLength),
+                            angle = Math.atan2(dy, dx),
+                            restrictedDX = restrictedRadius * Math.cos(angle),
+                            restrictedDY = restrictedRadius * Math.sin(angle),
+
+                            // Calculate the coordinates for the square
+                            halfEdgeLength = Math.min(restrictedDX, restrictedDY),
+                            topLeft = [center[0] - halfEdgeLength, center[1] + halfEdgeLength],
+                            topRight = [center[0] + halfEdgeLength, center[1] + halfEdgeLength],
+                            bottomLeft = [center[0] - halfEdgeLength, center[1] - halfEdgeLength],
+                            bottomRight = [center[0] + halfEdgeLength, center[1] - halfEdgeLength],
+                            squareCoordinates = [topLeft, bottomLeft, bottomRight, topRight, topLeft];
+
+
+                        // Update the geometry coordinates
+                        if (!geometry) {
+                            geometry = new Polygon([squareCoordinates]);
+                        }
+                        else {
+                            geometry.setCoordinates([squareCoordinates]);
+                        }
+
+                        return geometry;
+                    }
+                });
+
+                this.square.on("drawstart", () => {
+                    this.drawActive = true;
+                });
+
+                this.square.on("drawend", (event) => {
+                    if (this.dataSets.length && this.dataSets.find(dataSet => dataSet.id === this.activeSet)) {
+                        this.activeSet = this.dataSets.length;
+                    }
+
+                    event.feature.setId("wind-" + this.activeSet); // give the feature a id
+                    this.removeExistingFeature();
+                    this.createStyle(event.feature);
+                    this.drawActive = false;
+                    this.square.finishDrawing();
+                    this.map.removeInteraction(this.square);
+                    this.squareActive = false;
+
+                });
+
+                /* this.map.on("pointerup", () => {
+                    if (this.drawActive) {
+                        this.square.finishDrawing();
+                        this.map.removeInteraction(this.square);
+                        this.squareActive = false;
+                    }
+                });*/
+
+                this.map.addInteraction(this.square);
+            }
+        },
         createExtent (feature) {
             const extent = feature.getGeometry().getExtent(),
                 sizeCheck = getSize(extent);
@@ -180,6 +261,15 @@ export default {
                 }
             };
 
+        },
+        createStyle (feature) {
+            feature.styleRule = {
+                style: {
+                    polygonFillColor: [0, 0, 0, 0],
+                    polygonStrokeColor: [255, 0, 0, 1],
+                    polygonStrokeWidth: 3
+                }
+            };
         },
         fixExtent (extent, x, y) {
             const newX = x > 500 ? 500 : x,
@@ -266,11 +356,12 @@ export default {
             return null;
         },
         async simulateWind () {
+            console.log("hä?");
             const format = new GeoJSON(),
                 feature = this.getFeature(),
                 dataSet = {
                     id: this.activeSet,
-                    results: this.results,
+                    results: null,
                     type: this.type,
                     area: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}),
                     windSpeed: this.windSpeed,
@@ -285,10 +376,20 @@ export default {
                         wind_direction: this.windDirection
                     }
                 },
-                taskId = await this.apiService.postWindData(prepareApiDataSet);
+                task = await this.apiService.postWindData(prepareApiDataSet),
+                taskId = task.data.taskId,
+                taskStatus = await this.getTaskStatus(taskId);
+            
+                console.log("ENDSTATION?=!");
+            if (taskStatus.data.status === "SUCCESS") {
+                const taskResult = await this.apiService.getTaskResult(taskId);
 
-            console.log(prepareApiDataSet);
-            console.log(taskId);
+                console.log("HERE?", taskResult);
+                this.results = taskResult;
+                dataSet.results = this.results;
+            }
+
+
             this.dataSets.push(dataSet);
             this.rerenderVectorLayer();
             this.map.getView().fit(feature.getGeometry().getExtent());
@@ -313,15 +414,35 @@ export default {
                         max_speed: this.maxSpeed,
                         traffic_quota: this.trafficQuota
                     }
-                },
-                taskId = await this.apiService.postNoiseData(prepareApiDataSet);
+                };
+                // taskId = await this.apiService.postNoiseData(prepareApiDataSet);
 
-            console.log(prepareApiDataSet);
-            console.log(taskId);
+            // console.log(taskId);
             this.dataSets.push(dataSet);
             this.rerenderVectorLayer();
             this.map.getView().fit(feature.getGeometry().getExtent());
             this.createPNG();
+        },
+        async getTaskStatus (taskId) {
+            let loop = true;
+
+            while (loop) {
+                const response = await this.apiService.getTaskStatus(taskId);
+
+                if (response.data.status === "SUCCESS" || response.data.status === "FAILURE") {
+                    return response;
+                }
+                else if (response.data.status === "PENDING") {
+                    console.log("again in 1sec");
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                else {
+                    loop = false;
+                    return null;
+                }
+            }
+
+            return null;
         },
         rerenderVectorLayer () {
             if (this.features.length) {
@@ -387,64 +508,92 @@ export default {
                 this.source.changed();
             }
         },
-        createPNG () {
-            this.map.once("rendercomplete", function (map) {
-                const mapCanvas = document.createElement("canvas"),
-                    size = map.target.getSize(),
-                    mapContext = mapCanvas.getContext("2d");
+        async createPNG () {
 
-                mapCanvas.width = size[0];
-                mapCanvas.height = size[1];
+            try {
+                const mapOnceResult = await this.waitForMapOnce();
 
-                Array.prototype.forEach.call(
-                    map.target.getViewport().querySelectorAll(".ol-layer canvas, canvas.ol-layer"),
-                    function (canvas) {
-                        if (canvas.width > 0) {
-                            const opacity = canvas.parentNode.style.opacity || canvas.style.opacity,
-                                transform = canvas.style.transform,
-                                backgroundColor = canvas.parentNode.style.backgroundColor;
+                this.dataSets[this.activeSet].img = mapOnceResult;
+                this.map.renderSync();
+            }
+            catch (error) {
+                // Handle any errors that may occur
+                console.error(error);
+            }
+        },
+        downloadPNG () {
+            const link = document.createElement("a");
 
-                            mapContext.globalAlpha = opacity === "" ? 1 : Number(opacity);
-                            let matrix;
+            link.href = this.dataSets[this.activeSet].img;
+            link.download = "dcs_simulation_tile_" + this.dataSets[this.activeSet].type;
+            link.click();
+        },
+        waitForMapOnce () {
+            return new Promise((resolve, reject) => {
+                this.map.once("rendercomplete", function (map) {
+                    let dataResult = null;
+                    const mapCanvas = document.createElement("canvas"),
+                        size = map.target.getSize(),
+                        mapContext = mapCanvas.getContext("2d");
 
-                            if (transform) {
+                    mapCanvas.width = size[0];
+                    mapCanvas.height = size[1];
+
+                    Array.prototype.forEach.call(
+                        map.target.getViewport().querySelectorAll(".ol-layer canvas, canvas.ol-layer"),
+                        function (canvas) {
+                            if (canvas.width > 0) {
+                                const opacity = canvas.parentNode.style.opacity || canvas.style.opacity,
+                                    transform = canvas.style.transform,
+                                    backgroundColor = canvas.parentNode.style.backgroundColor;
+
+                                mapContext.globalAlpha = opacity === "" ? 1 : Number(opacity);
+                                let matrix;
+
+                                if (transform) {
                                 // Get the transform parameters from the style's transform matrix
-                                matrix = transform
-                                    .match(/^matrix\(([^\(]*)\)$/)[1]
-                                    .split(",")
-                                    .map(Number);
-                            }
-                            else {
-                                matrix = [
-                                    parseFloat(canvas.style.width) / canvas.width,
-                                    0,
-                                    0,
-                                    parseFloat(canvas.style.height) / canvas.height,
-                                    0,
-                                    0
-                                ];
-                            }
-                            // Apply the transform to the export map context
-                            CanvasRenderingContext2D.prototype.setTransform.apply(
-                                mapContext,
-                                matrix
-                            );
+                                    matrix = transform
+                                        .match(/^matrix\(([^\(]*)\)$/)[1]
+                                        .split(",")
+                                        .map(Number);
+                                }
+                                else {
+                                    matrix = [
+                                        parseFloat(canvas.style.width) / canvas.width,
+                                        0,
+                                        0,
+                                        parseFloat(canvas.style.height) / canvas.height,
+                                        0,
+                                        0
+                                    ];
+                                }
+                                // Apply the transform to the export map context
+                                CanvasRenderingContext2D.prototype.setTransform.apply(
+                                    mapContext,
+                                    matrix
+                                );
 
-                            if (backgroundColor) {
-                                mapContext.fillStyle = backgroundColor;
-                                mapContext.fillRect(0, 0, canvas.width, canvas.height);
+                                if (backgroundColor) {
+                                    mapContext.fillStyle = backgroundColor;
+                                    mapContext.fillRect(0, 0, canvas.width, canvas.height);
+                                }
+                                mapContext.drawImage(canvas, 0, 0);
                             }
-                            mapContext.drawImage(canvas, 0, 0);
                         }
-                    }
-                );
+                    );
 
-                mapContext.globalAlpha = 1;
-                mapContext.setTransform(1, 0, 0, 1, 0, 0);
+                    mapContext.globalAlpha = 1;
+                    mapContext.setTransform(1, 0, 0, 1, 0, 0);
 
-                this.dataSets[this.activeSet].img = mapCanvas.toDataURL();
+                    dataResult = mapCanvas.toDataURL();
+                    resolve(dataResult);
+                });
             });
-            this.map.renderSync();
+        },
+        zoomToActiveTile () {
+            const feature = this.getFeature();
+
+            this.map.getView().fit(feature.getGeometry().getExtent());
         },
         setPagination (mode, value) {
             if (mode === "add") {
@@ -542,6 +691,12 @@ export default {
                         <button
                             :class="{draw: buttonActive}"
                             @click="createDraw()"
+                        >
+                            <i class="bi bi-pencil" />
+                        </button>
+                        <button
+                            :class="{draw: squareActive}"
+                            @click="createSquare()"
                         >
                             <i class="bi bi-pencil-square" />
                         </button>
@@ -709,12 +864,19 @@ export default {
                             class="result set"
                         >
                             <div
+                                v-if="dataSets[activeSet].img"
                                 class="image_placeholder"
+                                @click="zoomToActiveTile"
+                                @keyup="zoomToActiveTile"
                             >
                                 <img
                                     alt=""
                                     :src="dataSets[activeSet].img"
                                 >
+                                <div class="hover_box">
+                                    <i class="bi bi-zoom-in" />
+                                    <p>{{ $t('additional:modules.tools.windSimulation.zoomToTile') }}</p>
+                                </div>
                             </div>
                             <p>Ergebnistabelle von Simulationsset #{{ dataSets[activeSet].id + 1 }}</p>
                             <p> {{ dataSets[activeSet] }}</p>
@@ -839,7 +1001,18 @@ export default {
                                 </div>
                             </div>
                         </template>
-                        <div class="download" />
+                        <div
+                            v-if="dataSets.length && dataSets[activeSet] && dataSets[activeSet].img"
+                            class="download"
+                        >
+                            <button
+                                class="image-download"
+                                @click="downloadPNG"
+                            >
+                                <i class="bi bi-download" />
+                                <p>{{ $t('additional:modules.tools.windSimulation.Download') }}</p>
+                            </button>
+                        </div>
                     </div>
                     <div
                         v-if="dataSets.length"
@@ -905,10 +1078,6 @@ export default {
                     />
                 </div>
             </div>
-            <a
-                id="image-download"
-                download="map.png"
-            >Test</a>
         </template>
     </ToolTemplate>
 </template>
@@ -983,6 +1152,63 @@ export default {
 
             &.results {
                 background:white;
+
+                .result {
+                    width:100%;
+
+                    .image_placeholder {
+                        display:block;
+                        position:relative;
+                        width:100%;
+
+                        img {
+                            width:100%;
+                            height:auto;
+                        }
+
+                        .hover_box {
+                            pointer-events: none;
+                            position:absolute;
+                            display:flex;
+                            flex-flow:row wrap;
+                            justify-content: center;
+                            align-content: center;
+                            top:0;
+                            left:0;
+                            width:100%;
+                            height:100%;
+                            background:rbga(0,0,0,0.25);
+                            backdrop-filter:blur(3px);
+                            opacity:0;
+                            transition:0.3s;
+
+                            .bi, p {
+                                flex: 1 0 100%;
+                                color:whitesmoke;
+                                text-align:center;
+                            }
+
+                            .bi {
+                                font-size:30px;
+                            }
+
+                            p {
+                                font-weight:500;
+                                font-size:120%;
+                            }
+                        }
+
+                        &:hover {
+                            cursor:pointer;
+
+                            .hover_box {
+                                opacity:1;
+                                transition:0.3s;
+                            }
+                        }
+
+                    }
+                }
             }
 
             &.draw {
@@ -994,6 +1220,7 @@ export default {
                     flex-flow:row wrap;
                     justify-content:center;
                     align-items:center;
+                    margin:0 0 0 auto;
 
                     input {
                         width:20px;
@@ -1004,6 +1231,10 @@ export default {
                         font-size:110%;
                         margin:0;
                     }
+                }
+
+                button {
+                    margin-right:3px;
                 }
             }
 
@@ -1194,6 +1425,34 @@ export default {
                 padding:5px 10px;
                 border:1px solid #444;
 
+                &.image-download {
+                    width:200px;
+                    display:flex;
+                    flex-flow:row wrap;
+                    justify-content:center;
+                    border:none;
+                    border-radius:5px;
+                    margin:5px 0px 5px auto;
+
+                    .bi {
+                        flex-basis:30px;
+                        margin-right:10px;
+                    }
+
+                    p {
+                        flex-basis:auto;
+                        color:#222;
+                    }
+
+                    &:hover {
+                        background:$masterportal_blue;
+
+                        p, .bi {
+                            color:whitesmoke;
+                        }
+                    }
+                }
+
                 &.draw {
                     background-color:$masterportal_blue;
                     color:white;
@@ -1260,6 +1519,10 @@ export default {
                         color:whitesmoke;
                     }
                 }
+            }
+
+            .download {
+                width:100%;
             }
         }
 

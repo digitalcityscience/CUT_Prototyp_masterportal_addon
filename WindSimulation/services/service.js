@@ -23,18 +23,38 @@ class ApiService {
 
     /**
          * posts input data to api (wind)
+         * @param {Object} payload - the json object going into the api
          * @returns {Promise<any> | null} request response
          */
-    postWindData () {
-        return axios.post(`${this.url}${this.urlWindSuffix}`);
+    postWindData (payload) {
+        return axios.post(`${this.url}${this.urlWindSuffix}`, payload);
     }
 
     /**
          * posts input data to api (noise)
+         * @param {Object} payload - the json object going into the api
          * @returns {Promise<any> | null} request response
          */
-    postNoiseData () {
-        return axios.post(`${this.url}${this.urlNoiseSuffix}`);
+    postNoiseData (payload) {
+        return axios.post(`${this.url}${this.urlNoiseSuffix}`, payload);
+    }
+
+    /**
+     * get tasks status
+     * @param {String} taskId - the id of the tast in the api
+     * @returns {Promise<any> | null} request response
+     */
+    getTaskStatus (taskId) {
+        return axios.get(`${this.url}/tasks/${taskId}/status`);
+    }
+
+    /**
+     * get tasks status
+     * @param {String} taskId - the id of the tast in the api
+     * @returns {Promise<any> | null} request response
+     */
+    getTaskResult (taskId) {
+        return axios.get(`${this.url}/tasks/${taskId}`);
     }
 }
 

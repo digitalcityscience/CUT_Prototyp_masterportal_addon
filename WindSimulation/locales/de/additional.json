@@ -3,11 +3,14 @@
         "tools": {
             "windSimulation": {
                 "title": "DCS Simulations",
-                "title_wind": "Wind Simulation",
-                "title_noise": "Noise Simulation",
+                "sub_title": "Cockpit for Collaborative Urban Planning",
+                "title_wind": "Wind",
+                "title_noise": "Noise",
+                "title_pedestrians": "Pedestrians",
+                "title_stormwater": "Stormwater",
+                "title_sun": "Sun",
                 "params_wind": "Wind parameters",
                 "params_noise": "Traffic Noise parameters",
-                "content": "Ich bin das neue DCS Addon",
                 "runSimulation": "Run Simulation",
                 "x500": "X-Achse",
                 "y500": "Y-Achse",
@@ -16,7 +19,16 @@
                 "Bestätigen": "Bestätigen",
                 "Ablehnen": "Ablehnen",
                 "Download": "Download PNG",
-                "zoomToTile": "Zoom map to simulation tile"
+                "settings": "Settings",
+                "results": "Results",
+                "zoomToTile": "Zoom map to simulation tile",
+                "auth": {
+                    "mail": "Benutzer",
+                    "pw": "Passwort",
+                    "save": "Meinen Log-In merken",
+                    "logout": "Nutzer jetzt ausloggen?",
+                    "logoutConfirm": "Ausloggen"
+                }
             }
         }
     }

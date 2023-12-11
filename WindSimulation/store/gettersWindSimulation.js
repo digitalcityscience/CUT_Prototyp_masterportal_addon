@@ -1,9 +1,9 @@
 
 import {generateSimpleGetters} from ".../../../src/app-store/utils/generators";
-import windSimulationState from "./stateWindSimulation";
+import WindSimulationState from "./stateWindSimulation";
 
 const getters = {
-    ...generateSimpleGetters(windSimulationState)
+    ...generateSimpleGetters(WindSimulationState)
 };
 
 export default getters;

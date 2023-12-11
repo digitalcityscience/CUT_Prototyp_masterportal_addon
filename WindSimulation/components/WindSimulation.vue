@@ -1,4 +1,5 @@
 <script>
+import AuthLogIn from "./AuthLogIn.vue";
 import ToolTemplate from "../../../src/modules/tools/ToolTemplate.vue";
 import {mapGetters, mapMutations} from "vuex";
 import getters from "../store/gettersWindSimulation";
@@ -7,17 +8,19 @@ import VectorSource from "ol/source/Vector.js";
 import Polygon, {fromExtent} from "ol/geom/Polygon";
 import GeoJSON from "ol/format/GeoJSON";
 import {getSize, getCenter} from "ol/extent";
-import {transform} from "ol/proj";
+// import {transform} from "ol/proj";
+import LoaderOverlay from "../../../src/utils/loaderOverlay.js";
 import Feature from "ol/Feature";
 import ApiService from "../services/service.js";
+import AuthService from "../services/authservice.js";
 import Draw from "ol/interaction/Draw.js";
-import Testdaten from "../../../portal/dcs/assets/test.json";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import * as webgl from "@masterportal/masterportalapi/src/renderer/webgl";
 
 export default {
     name: "WindSimulation",
     components: {
+        AuthLogIn,
         ToolTemplate
     },
     data () {
@@ -28,9 +31,11 @@ export default {
             draw: null,
             square: null,
             activeSet: 0,
+            counter: 0,
             buttonActive: false,
             squareActive: false,
             drawActive: false,
+            noDrawing: true,
             showDrawing: true,
             min: 0,
             max: 80,
@@ -43,27 +48,21 @@ export default {
             img: null,
             modalActive: false,
             modalMessage: null,
-            fixedExtent: null
+            fixedExtent: null,
+            logout: false
         };
     },
     computed: {
         ...mapGetters("Tools/WindSimulation", Object.keys(getters)),
         ...mapGetters("Maps", ["projection", "projectionCode"]),
         layer () {
-            return this.map.getLayers().getArray().filter(vectorLayer => vectorLayer.get("name") === "dcs_wind_simulation")[0];
+            return this.map.getLayers().getArray().filter(vectorLayer => vectorLayer.get("id") === "dcs_simulations")[0];
         },
         source () {
             return this.layer.getSource();
         },
-        features () {
-            return this.source.getFeatures();
-        },
-        noDrawing () {
-            if (this.features.find(feature => feature.getId() === "wind-" + this.activeSet) && !this.dataSets.find(set => set.id === this.activeSet)) {
-                return false;
-            }
-
-            return true;
+        dataSetsLength () {
+            return this.dataSets.length;
         }
     },
     watch: {
@@ -73,6 +72,7 @@ export default {
                 this.windSpeed = this.dataSets[newValue].windSpeed;
                 this.showDrawing = this.dataSets[newValue].showDrawing;
                 this.type = this.dataSets[newValue].type;
+                this.results = this.dataSets[newValue].results;
 
                 if (this.dataSets[oldValue].showDrawing === this.dataSets[newValue].showDrawing) {
                     this.rerenderVectorLayer();
@@ -83,33 +83,69 @@ export default {
             }
 
         },
+        dataSetsLength (newValue, oldValue) {
+            if (newValue > oldValue && newValue > 1) {
+                this.activeSet = newValue - 1;
+            }
+
+            if (newValue < oldValue) {
+                this.activeSet -= 1;
+            }
+
+            if (newValue === 0) {
+                this.activeSet = 0;
+            }
+        },
         showDrawing () {
             this.dataSets[this.activeSet].showDrawing = this.showDrawing;
             this.rerenderVectorLayer();
         }
     },
     created () {
+        console.log("I am created");
         this.map = mapCollection.getMap("2D");
         this.apiService = new ApiService(this.url, this.urlWindSuffix, this.urlNoiseSuffix);
         this.createVectorLayer();
+
+        this.source.on("addfeature", this.updateFeatures);
+        this.source.on("removefeature", this.updateFeatures);
         this.$on("close", this.close);
     },
     /**
      * Put initialize here if mounting occurs after config parsing
      * @returns {void}
      */
-    mounted () {
+    async mounted () {
+        if (!this.refreshToken & !this.authenticated) {
+            const refreshToken = localStorage.getItem("refreshToken"),
+                oldAccessToken = localStorage.getItem("oldAccessToken");
+
+            if (refreshToken) {
+                try {
+                    const response = await AuthService.refresh(refreshToken, oldAccessToken);
+
+                    if (response.access_token) {
+                        this.setAccessToken(response.access_token);
+                        this.setAuthenticated(true);
+                    }
+
+                }
+                catch (error) {
+                    console.error(error);
+                }
+            }
+        }
+
         this.applyTranslationKey(this.name);
-        this.loadDummyData();
     },
     methods: {
         ...mapMutations("Tools/WindSimulation", Object.keys(mutations)),
         createVectorLayer () {
             const attributes = {
-                    id: "dcs_wind_simulation",
+                    id: "dcs_simulations",
                     source: new VectorSource(),
                     disableHitDetection: false,
-                    name: "dcs_wind_simulation",
+                    name: "dcs_simulations",
                     typ: "VectorBase",
                     gfiAttributes: "showAll",
                     opacity: 1,
@@ -120,6 +156,14 @@ export default {
 
             layer.setZIndex(9999);
             this.map.addLayer(layer);
+        },
+        updateFeatures () {
+            if (this.source.getFeatures().find(feature => feature.getId() === "draw-" + this.dataSets.length)) {
+                this.noDrawing = false;
+            }
+            else {
+                this.noDrawing = true;
+            }
         },
         createDraw () {
             if (this.buttonActive) {
@@ -140,15 +184,17 @@ export default {
                 });
 
                 this.draw.on("drawend", (event) => {
+                    const order = this.dataSets.length;
+
                     if (this.dataSets.length && this.dataSets.find(dataSet => dataSet.id === this.activeSet)) {
                         this.activeSet = this.dataSets.length;
                     }
 
-                    event.feature.setId("wind-" + this.activeSet); // give the feature a id
+                    event.feature.setId("draw-" + order); // give the feature an id
+                    event.feature.set("featType", "drawing");
                     this.removeExistingFeature();
                     this.createExtent(event.feature);
                     this.drawActive = false;
-
                 });
 
                 this.map.on("pointerup", () => {
@@ -214,11 +260,14 @@ export default {
                 });
 
                 this.square.on("drawend", (event) => {
+                    const order = this.dataSets.length;
+
                     if (this.dataSets.length && this.dataSets.find(dataSet => dataSet.id === this.activeSet)) {
                         this.activeSet = this.dataSets.length;
                     }
 
-                    event.feature.setId("wind-" + this.activeSet); // give the feature a id
+                    event.feature.setId("draw-" + order); // give the feature a id
+                    event.feature.set("featType", "drawing");
                     this.removeExistingFeature();
                     this.createStyle(event.feature);
                     this.drawActive = false;
@@ -227,14 +276,6 @@ export default {
                     this.squareActive = false;
 
                 });
-
-                /* this.map.on("pointerup", () => {
-                    if (this.drawActive) {
-                        this.square.finishDrawing();
-                        this.map.removeInteraction(this.square);
-                        this.squareActive = false;
-                    }
-                });*/
 
                 this.map.addInteraction(this.square);
             }
@@ -284,6 +325,8 @@ export default {
             this.fixedExtent = feature;
         },
         confirmFix () {
+            const order = this.dataSets.length;
+
             this.removeExistingFeature();
             this.fixedExtent.styleRule = {
                 style: {
@@ -293,7 +336,7 @@ export default {
                 }
             };
 
-            this.fixedExtent.setId("wind-" + this.activeSet);
+            this.fixedExtent.setId("draw-" + order);
             this.source.addFeature(this.fixedExtent);
             this.rerenderVectorLayer();
             this.modalActive = false;
@@ -303,8 +346,8 @@ export default {
             this.modalActive = false;
         },
         removeExistingFeature () {
-            if (this.features.length) {
-                const featureExists = this.features.find(feature => feature.getId() === "wind-" + this.activeSet);
+            if (this.source.getFeatures().length) {
+                const featureExists = this.source.getFeatures().find(feature => feature.getId() === "draw-" + this.dataSets.length);
 
                 if (featureExists) {
                     this.source.removeFeature(featureExists);
@@ -342,9 +385,9 @@ export default {
 
             return "N";
         },
-        getFeature () {
-            if (this.features.length) {
-                const featureExists = this.features.find(feature => feature.getId() === "wind-" + this.activeSet);
+        getFeature (value) {
+            if (this.source.getFeatures().length) {
+                const featureExists = value ? this.source.getFeatures().find(feature => feature.getId() === "draw-" + value) : this.source.getFeatures().find(feature => feature.getId() === "draw-" + this.activeSet);
 
                 if (featureExists) {
                     const featureCopy = featureExists.clone();
@@ -356,11 +399,11 @@ export default {
             return null;
         },
         async simulateWind () {
-            console.log("hä?");
+            LoaderOverlay.show();
             const format = new GeoJSON(),
-                feature = this.getFeature(),
+                feature = this.getFeature(this.dataSets.length),
                 dataSet = {
-                    id: this.activeSet,
+                    id: this.type + "-" + this.activeSet + "-" + this.counter,
                     results: null,
                     type: this.type,
                     area: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}),
@@ -379,28 +422,29 @@ export default {
                 task = await this.apiService.postWindData(prepareApiDataSet),
                 taskId = task.data.taskId,
                 taskStatus = await this.getTaskStatus(taskId);
-            
-                console.log("ENDSTATION?=!");
+
             if (taskStatus.data.status === "SUCCESS") {
                 const taskResult = await this.apiService.getTaskResult(taskId);
 
-                console.log("HERE?", taskResult);
-                this.results = taskResult;
-                dataSet.results = this.results;
+                this.results = taskResult.data.result.features;
+                dataSet.results = taskResult.data.result.features;
+
+                await this.addFeaturesToVectorLayer(dataSet);
+                this.dataSets.push(dataSet);
+                // this.rerenderVectorLayer();
+                this.map.getView().fit(feature.getGeometry().getExtent());
+                await this.createPNG();
+                this.counter += 1;
+                LoaderOverlay.hide();
             }
-
-
-            this.dataSets.push(dataSet);
-            this.rerenderVectorLayer();
-            this.map.getView().fit(feature.getGeometry().getExtent());
-            this.createPNG();
         },
         async simulateNoise () {
+            LoaderOverlay.show();
             const format = new GeoJSON(),
-                feature = this.getFeature(),
+                feature = this.getFeature(this.dataSets.length),
                 dataSet = {
-                    id: this.activeSet,
-                    results: this.results,
+                    id: this.type + "-" + this.activeSet + "-" + this.counter,
+                    results: null,
                     type: this.type,
                     area: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}),
                     maxSpeed: this.maxSpeed,
@@ -414,14 +458,25 @@ export default {
                         max_speed: this.maxSpeed,
                         traffic_quota: this.trafficQuota
                     }
-                };
-                // taskId = await this.apiService.postNoiseData(prepareApiDataSet);
+                },
+                task = await this.apiService.postNoiseData(prepareApiDataSet),
+                taskId = task.data.taskId,
+                taskStatus = await this.getTaskStatus(taskId);
 
-            // console.log(taskId);
-            this.dataSets.push(dataSet);
-            this.rerenderVectorLayer();
-            this.map.getView().fit(feature.getGeometry().getExtent());
-            this.createPNG();
+            if (taskStatus.data.status === "SUCCESS") {
+                const taskResult = await this.apiService.getTaskResult(taskId);
+
+                this.results = taskResult.data.result.features;
+                dataSet.results = taskResult.data.result.features;
+
+                await this.addFeaturesToVectorLayer(dataSet);
+                this.dataSets.push(dataSet);
+                // this.rerenderVectorLayer();
+                this.map.getView().fit(feature.getGeometry().getExtent());
+                await this.createPNG();
+                this.counter += 1;
+                LoaderOverlay.hide();
+            }
         },
         async getTaskStatus (taskId) {
             let loop = true;
@@ -444,11 +499,72 @@ export default {
 
             return null;
         },
+        addFeaturesToVectorLayer (dataSet) {
+            this.results.forEach((feature, index) => {
+                let color;
+                const format = new GeoJSON(),
+                    feat = format.readFeature(feature, {featureProjection: this.projection}),
+                    value = feat.get("value");
+
+                feat.setId(dataSet.id + "-" + index);
+                feat.set("type", this.type);
+                feat.set("source", dataSet.id);
+                feat.set("featType", "simulation");
+
+                if (this.type === "wind") {
+                    color = this.colorSpace.wind[value];
+                }
+
+                if (this.type === "noise") {
+                    color = this.colorSpace.noise[value];
+                }
+
+                feat.set("styling", color);
+                feat.styleRule = {
+                    style: {
+                        polygonFillColor: color
+                    }
+                };
+
+                this.source.addFeature(feat);
+            });
+
+            this.source.changed();
+        },
         rerenderVectorLayer () {
-            if (this.features.length) {
-                this.features.forEach(feature => {
-                    if (feature.getId() === "wind-" + this.activeSet && this.dataSets[this.activeSet]) {
-                        if (!this.dataSets[this.activeSet].showDrawing) {
+            if (this.source.getFeatures().length) {
+                this.source.getFeatures().forEach(feature => {
+                    if (feature.get("featType") === "drawing") {
+                        if (feature.getId() === "draw-" + this.activeSet && this.dataSets[this.activeSet]) {
+                            if (!this.dataSets[this.activeSet].showDrawing) {
+                                feature.styleRule = {
+                                    style: {
+                                        polygonFillColor: [0, 0, 0, 0],
+                                        polygonStrokeColor: [0, 0, 0, 0],
+                                        polygonStrokeWidth: 0
+                                    }
+                                };
+                            }
+                            else if (this.dataSets[this.activeSet].showDrawing) {
+                                feature.styleRule = {
+                                    style: {
+                                        polygonFillColor: [0, 0, 0, 0],
+                                        polygonStrokeColor: [255, 0, 0, 1],
+                                        polygonStrokeWidth: 3
+                                    }
+                                };
+                            }
+                        }
+                        else if (feature.getId() === "draw-" + this.activeSet && !this.dataSets[this.activeSet]) {
+                            feature.styleRule = {
+                                style: {
+                                    polygonFillColor: [0, 0, 0, 0],
+                                    polygonStrokeColor: [255, 0, 0, 1],
+                                    polygonStrokeWidth: 3
+                                }
+                            };
+                        }
+                        else {
                             feature.styleRule = {
                                 style: {
                                     polygonFillColor: [0, 0, 0, 0],
@@ -457,51 +573,28 @@ export default {
                                 }
                             };
                         }
-                        if (this.dataSets.length && this.dataSets.find(set => set.id === this.activeSet && this.dataSets[this.activeSet].showDrawing)) {
+                    }
+
+                    if (feature.get("featType") === "simulation") {
+                        if (feature.get("source") === this.dataSets[this.activeSet].id) {
+                            const color = feature.get("styling");
+
                             feature.styleRule = {
                                 style: {
-                                    polygonFillColor: [255, 255, 255, 0.5],
-                                    polygonStrokeColor: [255, 0, 0, 1],
-                                    polygonStrokeWidth: 3
+                                    polygonStrokeWidth: 0,
+                                    polygonFillColor: color
                                 }
                             };
                         }
-                        else if (this.dataSets[this.activeSet].showDrawing) {
+                        else {
                             feature.styleRule = {
                                 style: {
                                     polygonFillColor: [0, 0, 0, 0],
-                                    polygonStrokeColor: [255, 0, 0, 1],
-                                    polygonStrokeWidth: 3
+                                    polygonStrokeColor: [0, 0, 0, 0],
+                                    polygonStrokeWidth: 0
                                 }
                             };
                         }
-                    }
-                    else if (feature.getId() === "wind-" + this.activeSet && !this.dataSets[this.activeSet]) {
-                        feature.styleRule = {
-                            style: {
-                                polygonFillColor: [0, 0, 0, 0],
-                                polygonStrokeColor: [255, 0, 0, 1],
-                                polygonStrokeWidth: 3
-                            }
-                        };
-                    }
-                    else if (feature.getId().includes("testdata")) {
-                        feature.styleRule = {
-                            style: {
-                                polygonFillColor: feature.getProperties().value >= 0.2 ? [255, 255, 0, 0.5] : feature.getProperties().value === 0.4 ? [255, 0, 0, 0.5] : [0, 0, 255, 0.5],
-                                polygonStrokeColor: [0, 0, 0, 0],
-                                polygonStrokeWidth: 0
-                            }
-                        };
-                    }
-                    else {
-                        feature.styleRule = {
-                            style: {
-                                polygonFillColor: [0, 0, 0, 0],
-                                polygonStrokeColor: [0, 0, 0, 0],
-                                polygonStrokeWidth: 0
-                            }
-                        };
                     }
                 });
 
@@ -529,6 +622,7 @@ export default {
             link.click();
         },
         waitForMapOnce () {
+            // eslint-disable-next-line
             return new Promise((resolve, reject) => {
                 this.map.once("rendercomplete", function (map) {
                     let dataResult = null;
@@ -544,6 +638,7 @@ export default {
                         function (canvas) {
                             if (canvas.width > 0) {
                                 const opacity = canvas.parentNode.style.opacity || canvas.style.opacity,
+                                    // eslint-disable-next-line
                                     transform = canvas.style.transform,
                                     backgroundColor = canvas.parentNode.style.backgroundColor;
 
@@ -591,7 +686,7 @@ export default {
             });
         },
         zoomToActiveTile () {
-            const feature = this.getFeature();
+            const feature = this.getFeature(0);
 
             this.map.getView().fit(feature.getGeometry().getExtent());
         },
@@ -615,22 +710,19 @@ export default {
                 this.activeSet = value;
             }
         },
-        loadDummyData () {
-            Testdaten.results.features.forEach((feature, index) => {
-                const format = new GeoJSON(),
-                    feat = format.readFeature(feature, {featureProjection: this.projection});
+        removeSet (activeSet) {
+            this.dataSets.splice(activeSet, 1);
 
-                feat.setId("testdata-" + index);
-                feat.styleRule = {
-                    style: {
-                        polygonFillColor: [255, 255, 0, 0.5]
-                        // polygonFillColor: feat.getProperties().value >= 0.2 ? [255,0,0,0.5] : feat.getProperties().value >= 0.4 ? [255,0,0,0.75] : [255,0,0,0.25],
-                    }
-                };
-
-                this.source.addFeature(feat);
-                this.rerenderVectorLayer();
-            });
+            if (this.activeSet >= 1) {
+                this.activeSet -= 1;
+            }
+            else {
+                this.activeSet = 0;
+            }
+        },
+        logoutUser () {
+            AuthService.logout(this.refreshToken);
+            this.close();
         },
         /**
          * Closes this tool window by setting active to false
@@ -642,7 +734,7 @@ export default {
             // TODO replace trigger when Menu is migrated
             // set the backbone model to active false for changing css class in menu (menu/desktop/tool/view.toggleIsActiveClass)
             // else the menu-entry for this tool is always highlighted
-            const model = Radio.request("ModelList", "getModelByAttributes", {id: this.$store.state.Tools.VueAddon.id});
+            const model = Radio.request("ModelList", "getModelByAttributes", {id: this.$store.state.Tools.WindSimulation.id});
 
             if (model) {
                 model.set("isActive", false);
@@ -668,7 +760,33 @@ export default {
                 v-if="active"
                 id="wind-simulation-addon"
             >
-                <div class="addon_wrapper">
+                <AuthLogIn v-if="!authenticated" />
+                <div
+                    v-if="authenticated"
+                    class="addon_wrapper"
+                >
+                    <div class="header">
+                        <h3 class="sub_title">
+                            {{ $t('additional:modules.tools.windSimulation.sub_title') }}
+                        </h3>
+                        <button
+                            class="logout"
+                            @click="logout = !logout"
+                        >
+                            <i class="bi bi-person-fill" />
+                        </button>
+                        <div
+                            v-if="logout"
+                            class="logout_input"
+                        >
+                            <p>{{ $t('additional:modules.tools.windSimulation.auth.logout') }}</p>
+                            <button
+                                @click="logoutUser"
+                            >
+                                {{ $t('additional:modules.tools.windSimulation.auth.logoutConfirm') }}
+                            </button>
+                        </div>
+                    </div>
                     <div class="section head">
                         <button
                             class="head"
@@ -685,6 +803,30 @@ export default {
                         >
                             <i class="bi bi-car-front" />
                             <p>{{ $t('additional:modules.tools.windSimulation.title_noise') }}</p>
+                        </button>
+                        <button
+                            class="head disabled"
+                            :class="{highlight: type === 'abm'}"
+                            @click="type = 'abm'"
+                        >
+                            <i class="bi bi-people-fill" />
+                            <p>{{ $t('additional:modules.tools.windSimulation.title_pedestrians') }}</p>
+                        </button>
+                        <button
+                            class="head disabled"
+                            :class="{highlight: type === 'stormwater'}"
+                            @click="type = 'stormwater'"
+                        >
+                            <i class="bi bi-cloud-lightning-rain-fill" />
+                            <p>{{ $t('additional:modules.tools.windSimulation.title_stormwater') }}</p>
+                        </button>
+                        <button
+                            class="head disabled"
+                            :class="{highlight: type === 'sun'}"
+                            @click="type = 'sun'"
+                        >
+                            <i class="bi bi-sun-fill" />
+                            <p>{{ $t('additional:modules.tools.windSimulation.title_sun') }}</p>
                         </button>
                     </div>
                     <div class="section draw">
@@ -713,6 +855,9 @@ export default {
                         </div>
                     </div>
                     <template v-if="type === 'wind'">
+                        <h5 class="break_title">
+                            {{ $t('additional:modules.tools.windSimulation.settings') }}
+                        </h5>
                         <div class="section params">
                             <div class="section_head">
                                 <i class="bi bi-wind" />
@@ -777,19 +922,25 @@ export default {
                                     {{ windDirection }}° {{ calculateDirection(windDirection) }}
                                 </p>
                             </div>
-                            <div class="section simulation">
-                                <button
-                                    class="wide"
-                                    :class="{disabled: noDrawing}"
-                                    @click="simulateWind()"
-                                >
-                                    <i class="bi bi-wind" />
-                                    <p>{{ $t('additional:modules.tools.windSimulation.runSimulation') }}</p>
-                                </button>
-                            </div>
+                            <button
+                                class="wide run_sim"
+                                :class="{disabled: noDrawing}"
+                                @click="simulateWind()"
+                            >
+                                <i class="bi bi-wind" />
+                                <p>{{ $t('additional:modules.tools.windSimulation.runSimulation') }}</p>
+                            </button>
                         </div>
                     </template>
                     <template v-if="type === 'noise'">
+                        <div class="section info">
+                            <h4>TRAFFIC VOLUME</h4>
+                            <p>Volume of motorized traffic volume according to current planning assumptions (predicted traffic volume). Selecting 25% for example shows 25% of the predicted traffic volume. This is concerning traffic for the selected area.</p>
+                        </div>
+                        <h5 class="break_title">
+                            {{ $t('additional:modules.tools.windSimulation.settings') }}
+                        </h5>
+                        <!-- eslint-disable-next-line -->
                         <div class="section params">
                             <div class="section_head">
                                 <i class="bi bi-car-front" />
@@ -858,6 +1009,12 @@ export default {
                             </div>
                         </div>
                     </template>
+                    <h5
+                        v-if="dataSets.length && dataSets[activeSet]"
+                        class="break_title"
+                    >
+                        {{ $t('additional:modules.tools.windSimulation.results') }}
+                    </h5>
                     <div class="section results">
                         <div
                             v-if="dataSets.length && dataSets[activeSet]"
@@ -878,10 +1035,10 @@ export default {
                                     <p>{{ $t('additional:modules.tools.windSimulation.zoomToTile') }}</p>
                                 </div>
                             </div>
-                            <p>Ergebnistabelle von Simulationsset #{{ dataSets[activeSet].id + 1 }}</p>
-                            <p> {{ dataSets[activeSet] }}</p>
+                            <p>Ergebnistabelle von Simulationsset #{{ activeSet + 1 }}</p>
+                            <!--<p> {{ dataSets[activeSet] }}</p>-->
                         </div>
-                        <template v-if="type === 'wind'">
+                        <template v-if="type === 'wind' && dataSets.length">
                             <div class="legend wind">
                                 <p class="header">
                                     <strong>Legend</strong>
@@ -944,7 +1101,7 @@ export default {
                                 </div>
                             </div>
                         </template>
-                        <template v-if="type === 'noise'">
+                        <template v-if="type === 'noise' && dataSets.length">
                             <div class="legend noise">
                                 <p class="header">
                                     <strong>Legend</strong>
@@ -1020,13 +1177,13 @@ export default {
                     >
                         <div class="pagination_wrapper">
                             <button
-                                v-for="set in dataSets"
+                                v-for="(set, i) in dataSets"
                                 :key="set.id"
                                 class="pagination_point"
-                                :class="{active: set.id === activeSet}"
-                                @click="setPagination('set', set.id)"
+                                :class="{active: i === activeSet}"
+                                @click="setPagination('set', i)"
                             >
-                                <p>{{ set.id + 1 }}</p>
+                                <p>{{ i + 1 }}</p>
                             </button>
                             <button
                                 class="pagination_point blue"
@@ -1039,6 +1196,12 @@ export default {
                                 @click="setPagination('add', +1)"
                             >
                                 <i class="bi bi-arrow-right" />
+                            </button>
+                            <button
+                                class="pagination_point red"
+                                @click="removeSet(activeSet)"
+                            >
+                                <i class="bi bi-trash-fill" />
                             </button>
                         </div>
                     </div>
@@ -1083,18 +1246,49 @@ export default {
 </template>
 
 <style scoped lang="scss">
-    $masterportal_blue: #244470;
-    $prime_blue: #768ba6;
+    @import "../utils/variables.scss";
 
     #wind-simulation-addon {
+        min-height: 100%;
+        display: flex;
+        flex-flow: row wrap;
+        align-items: center;
+        .sub_title {
+            font-size:120%;
+            color:#444;
+            border:none;
+            padding:0;
+            margin:0;
+        }
+
+        .break_title {
+            display:block;
+            position:relative;
+            font-size: 120%;
+            font-weight: 300;
+            margin: 10px 0px;
+            color: #444;
+            overflow:hidden;
+
+            &:after {
+                content: "";
+                position: absolute;
+                top: 50%;
+                transform: translateY(-50%);
+                left: 70px;
+                width: 100%;
+                height: 0.5px;
+                background: #ccc;
+            }
+        }
         .section {
             width:100%;
             display:flex;
             flex-flow:row wrap;
-            justify-content:center;
+            justify-content:flex-start;
             margin:0px 0px 10px 0px;
             padding:20px 0px;
-            border-bottom:1px solid #ccc;
+            // border-bottom:1px solid #ccc;
 
             .section_head {
                 flex:1 0 100%;
@@ -1117,36 +1311,37 @@ export default {
 
             button.head {
                 display:flex;
-                flex-flow:row wrap;
+                flex-flow:row nowrap;
                 justify-content:center;
                 flex:auto;
+                flex-grow:0;
                 margin-right: 3px;
+                margin-bottom:3px;
                 padding:10px;
+                background:$coup_blue_1;
+                border:1px solid $coup_blue_1;
 
-                &:last-child {
-                    margin:0;
-                }
                 .bi {
                     flex:0 0 30px;
                     height:auto;
+                    color:whitesmoke;
                 }
 
                 p {
                     flex-basis:auto;
                     flex-grow:0;
-                    color:#222;
+                    margin:0 20px 0 0;
+                    color:whitesmoke;
                 }
 
                 &.highlight {
-                    background:$masterportal_blue;
+                    background:$coup_blue_2;
+                    border:1px solid whitesmoke;
+                }
 
-                    p {
-                        color:whitesmoke;
-                    }
-
-                    .bi {
-                        color:whitesmoke;
-                    }
+                &.disabled {
+                    opacity:0.8;
+                    pointer-events:none;
                 }
             }
 
@@ -1212,6 +1407,9 @@ export default {
             }
 
             &.draw {
+                border:none;
+                background:#eee;
+                padding:20px;
                 justify-content:space-between;
                 align-items:center;
 
@@ -1235,6 +1433,15 @@ export default {
 
                 button {
                     margin-right:3px;
+                }
+            }
+
+            &.params {
+                background:#eee;
+                padding:20px;
+
+                .run_sim {
+                    margin:30px 0px;
                 }
             }
 
@@ -1460,7 +1667,7 @@ export default {
 
                 &.wide {
                     flex:1 0 100%;
-                    padding:5px 20px;
+                    padding:10px 20px;
                     background-color:$prime_blue;
                     border:1px solid $prime_blue;
                     color:whitesmoke;
@@ -1515,8 +1722,12 @@ export default {
                     }
 
                     &.blue {
-                        background:$masterportal_blue;
+                        background:$coup_blue_1;
                         color:whitesmoke;
+                    }
+
+                    &.red {
+                        background:$error_red;
                     }
                 }
             }

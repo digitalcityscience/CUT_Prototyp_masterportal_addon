@@ -22,9 +22,12 @@
  */
 const state = {
     active: false,
+    authenticated: false,
+    accessToken: "",
+    refreshToken: "",
     id: "WindSimulation",
     // defaults for config.json parameters
-    name: "Simple Vue Addon",
+    name: "DCS Simulations",
     icon: "bi-bullseye",
     renderToWindow: false,
     resizableWindow: false,
@@ -32,8 +35,29 @@ const state = {
     initialWidth: 500,
     deactivateGFI: true,
     url: "https://api.city-scope.hcu-hamburg.de/cut-mock/",
+    // url: "https://dcs.creative-collective.de/",
     urlWindSuffix: "trigger_calculation_wind",
-    urlNoiseSuffix: "trigger_calculation_noise"
+    urlNoiseSuffix: "trigger_calculation_noise",
+    colorSpace: {
+        wind: {
+            "0": [69, 140, 191, 0.75],
+            "0.2": [149, 211, 224, 0.75],
+            "0.4": [144, 195, 99, 0.75],
+            "0.6": [244, 236, 125, 0.75],
+            "0.8": [251, 196, 111, 0.75],
+            "1": [238, 118, 121, 0.75]
+        },
+        noise: {
+            "0": [184, 214, 209, 0.75],
+            "1": [206, 228, 204, 0.75],
+            "2": [226, 242, 191, 0.75],
+            "3": [243, 198, 131, 0.75],
+            "4": [232, 126, 77, 0.75],
+            "5": [205, 70, 62, 0.75],
+            "6": [161, 26, 77, 0.75],
+            "7": [117, 8, 92, 0.75]
+        }
+    }
 };
 
 export default state;

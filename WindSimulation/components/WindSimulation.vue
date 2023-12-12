@@ -481,28 +481,24 @@ export default {
                     showDrawing: this.showDrawing,
                     img: null
                 },
-                /* apiSet for Mock-API
+                // apiSet for Mock-API
                 prepareApiDataSet = {
                     bbox: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}).geometry.coordinates[0],
                     calculation_settings: {
                         max_speed: this.maxSpeed,
                         traffic_quota: this.trafficQuota
                     }
-                },*/
-                streets = await this.apiService.getStreets(featureCollection),
+                },
+                /* streets = await this.apiService.getStreets(featureCollection),
                 buildings = await this.apiService.getBuildings(featureCollection),
                 prepareApiDataSet = {
                     max_speed: this.maxSpeed,
                     traffic_quota: this.trafficQuota,
                     buildings: buildings.data,
                     roads: streets.data
-                },
-                task = await this.apiService.postNoiseData(prepareApiDataSet);
-
-                console.log(prepareApiDataSet);
-                console.log(task);
-
-                const taskId = task.data.job_id,
+                },*/
+                task = await this.apiService.postNoiseData(prepareApiDataSet),
+                taskId = task.data.status,
                 taskStatus = await this.getTaskStatus(taskId, "getTaskStatusNoise");
 
             if (taskStatus === "SUCCESS") {
@@ -529,7 +525,7 @@ export default {
                 const response = await this.apiService[route](taskId);
 
                 console.log("taskid-res", response);
-                if (response.data.job_state === "SUCCESS" || response.data.job_state === "FAILURE") {
+                if (response.data.status === "SUCCESS" || response.data.status === "FAILURE") {
                     return response.data.job_state;
                 }
                 else if (response.data.status === "PENDING") {

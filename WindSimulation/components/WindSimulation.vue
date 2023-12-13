@@ -434,17 +434,16 @@ export default {
                 },
                 task = await this.apiService.postWindData(prepareApiDataSet),
                 taskId = task.data.taskId,
-                taskStatus = await this.getTaskStatus(taskId);
+                taskStatus = await this.getTaskStatus(taskId, "getTaskStatusWind");
 
-            console.log("this", task);
+            if (taskStatus === "SUCCESS") {
+                const taskResult = await this.apiService.getTaskResultWind(taskId);
 
-            if (taskStatus.data.status === "SUCCESS") {
-                const taskResult = await this.apiService.getTaskResult(taskId);
-
+                console.log(taskResult);
                 this.results = taskResult.data.result.features;
                 dataSet.results = taskResult.data.result.features;
 
-                await this.addFeaturesToVectorLayer(dataSet);
+                await this.addFeaturesToVectorLayer(dataSet, "value");
                 this.dataSets.push(dataSet);
                 // this.rerenderVectorLayer();
                 this.map.getView().fit(feature.getGeometry().getExtent());
@@ -481,34 +480,35 @@ export default {
                     showDrawing: this.showDrawing,
                     img: null
                 },
-                // apiSet for Mock-API
+                /* apiSet for Mock-API
                 prepareApiDataSet = {
                     bbox: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}).geometry.coordinates[0],
                     calculation_settings: {
                         max_speed: this.maxSpeed,
                         traffic_quota: this.trafficQuota
                     }
-                },
-                /* streets = await this.apiService.getStreets(featureCollection),
+                },*/
+                streets = await this.apiService.getStreets(featureCollection),
                 buildings = await this.apiService.getBuildings(featureCollection),
                 prepareApiDataSet = {
                     max_speed: this.maxSpeed,
                     traffic_quota: this.trafficQuota,
                     buildings: buildings.data,
                     roads: streets.data
-                },*/
-                task = await this.apiService.postNoiseData(prepareApiDataSet),
-                taskId = task.data.status,
+                };
+                console.log(prepareApiDataSet);
+                const task = await this.apiService.postNoiseData(prepareApiDataSet),
+                taskId = task.data.job_id,
                 taskStatus = await this.getTaskStatus(taskId, "getTaskStatusNoise");
 
             if (taskStatus === "SUCCESS") {
                 const taskResult = await this.apiService.getTaskResultNoise(taskId);
 
                 console.log("res", taskResult);
-                this.results = taskResult.data.result.features;
-                dataSet.results = taskResult.data.result.features;
+                this.results = taskResult.data.result.geojson.features;
+                dataSet.results = taskResult.data.result.geojson.features;
 
-                await this.addFeaturesToVectorLayer(dataSet);
+                await this.addFeaturesToVectorLayer(dataSet, "idiso");
                 this.dataSets.push(dataSet);
                 // this.rerenderVectorLayer();
                 this.map.getView().fit(feature.getGeometry().getExtent());
@@ -526,11 +526,14 @@ export default {
 
                 console.log("taskid-res", response);
                 if (response.data.status === "SUCCESS" || response.data.status === "FAILURE") {
+                    return response.data.status;
+                }
+                if (response.data.job_state === "SUCCESS" || response.data.job_state === "FAILURE") {
                     return response.data.job_state;
                 }
                 else if (response.data.status === "PENDING") {
-                    console.log("again in 15sec");
-                    await new Promise(resolve => setTimeout(resolve, 15000));
+                    console.log("again in 2sec");
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 }
                 else {
                     loop = false;
@@ -540,12 +543,12 @@ export default {
 
             return null;
         },
-        addFeaturesToVectorLayer (dataSet) {
+        addFeaturesToVectorLayer (dataSet, valueType) {
             this.results.forEach((feature, index) => {
                 let color;
                 const format = new GeoJSON(),
                     feat = format.readFeature(feature, {featureProjection: this.projection}),
-                    value = feat.get("value");
+                    value = feat.get(valueType);
 
                 feat.setId(dataSet.id + "-" + index);
                 feat.set("type", this.type);

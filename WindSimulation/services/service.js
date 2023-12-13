@@ -73,7 +73,7 @@ class ApiService {
      * @param {String} taskId - the id of the tast in the api
      * @returns {Promise<any> | null} request response
      */
-    getTaskStatus (taskId) {
+    getTaskStatusWind (taskId) {
         return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}`);
     }
 
@@ -93,6 +93,15 @@ class ApiService {
      */
     getTaskResult (taskId) {
         return axios.get(`${this.url}/tasks/${taskId}`);
+    }
+
+    /**
+     * get tasks status
+     * @param {String} taskId - the id of the tast in the api
+     * @returns {Promise<any> | null} request response
+     */
+    getTaskResultWind (taskId) {
+        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}/results`);
     }
 
     /**

@@ -4,8 +4,8 @@ import axios from "axios";
  * Service with helper functions for API requests
  */
 class ApiService {
-    // testUrl = "https://api.city-scope.hcu-hamburg.de/cut-mock/";
-    url = "https://api.city-scope.hcu-hamburg.de/";
+    url = "https://api.city-scope.hcu-hamburg.de/cut-mock/";
+    // url = "https://api.city-scope.hcu-hamburg.de/";   // prod url
     // urlWindSuffix = "trigger_calculation_wind";
     // urlNoiseSuffix = "trigger_calculation_noise";
     urlWindSuffix = "cut-public-api/wind";
@@ -64,7 +64,7 @@ class ApiService {
          * @returns {Promise<any> | null} request response
          */
     postWindData (payload, access_token) {
-        return axios.post(`${this.url}${this.urlWindSuffix}/processes/wind/execution`, payload, {
+        return axios.post(`${this.url}${this.urlWindSuffix}/processes/wind-comfort/execution`, payload, {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",
@@ -112,7 +112,7 @@ class ApiService {
      * @returns {Promise<any> | null} request response
      */
     getTaskStatusNoise (taskId, access_token) {
-        return axios.get(`${this.url}${this.urlNoiseSuffix}/noise/jobs/${taskId}/status`, {
+        return axios.get(`${this.url}${this.urlNoiseSuffix}/jobs/${taskId}/status`, {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",

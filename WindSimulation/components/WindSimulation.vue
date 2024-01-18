@@ -15,7 +15,10 @@ import ApiService from "../services/service.js";
 import AuthService from "../services/authservice.js";
 import Draw from "ol/interaction/Draw.js";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import * as webgl from "@masterportal/masterportalapi/src/renderer/webgl";
+import {Stroke, Style, Fill} from "ol/style";
+import VectorLayer from "ol/layer/Vector";
+import Select from "ol/interaction/Select";
+import {pointerMove} from "ol/events/condition";
 
 export default {
     name: "WindSimulation",
@@ -25,6 +28,9 @@ export default {
     },
     data () {
         return {
+            gridLayer: null,
+            highlightLayer: null,
+            workingLayer: null,
             type: "wind",
             result: {},
             dataSets: [],
@@ -55,18 +61,40 @@ export default {
     computed: {
         ...mapGetters("Tools/WindSimulation", Object.keys(getters)),
         ...mapGetters("Maps", ["projection", "projectionCode"]),
-        layer () {
-            return this.map.getLayers().getArray().filter(vectorLayer => vectorLayer.get("id") === "dcs_simulations")[0];
-        },
         source () {
-            return this.layer.getSource();
+            return this.workingLayer.getSource();
         },
         dataSetsLength () {
             return this.dataSets.length;
         }
     },
     watch: {
+        active () {
+            if (this.active && this.showGrid && this.authenticated) {
+                this.toggleGrid(true);
+            }
+            else {
+                this.toggleGrid(false);
+            }
+        },
+        showGrid () {
+            if (this.active && this.showGrid && this.authenticated) {
+                this.toggleGrid(true);
+            }
+            else {
+                this.toggleGrid(false);
+            }
+        },
+        authenticated () {
+            if (this.active && this.showGrid && this.authenticated) {
+                this.toggleGrid(true);
+            }
+            else {
+                this.toggleGrid(false);
+            }
+        },
         activeSet (newValue, oldValue) {
+            console.log("activeSet", this.activeSet);
             if (this.dataSets[newValue]) {
                 this.windDirection = this.dataSets[newValue].windDirection;
                 this.windSpeed = this.dataSets[newValue].windSpeed;
@@ -102,7 +130,6 @@ export default {
         }
     },
     created () {
-        console.log("I am created");
         this.map = mapCollection.getMap("2D");
         this.apiService = new ApiService(this.url, this.urlWindSuffix, this.urlNoiseSuffix);
         this.createVectorLayer();
@@ -136,11 +163,13 @@ export default {
             }
         }
 
+        this.loadGrid();
         this.applyTranslationKey(this.name);
     },
     methods: {
         ...mapMutations("Tools/WindSimulation", Object.keys(mutations)),
         createVectorLayer () {
+            /* WEBGL Implementation (needs to be updated)
             const attributes = {
                     id: "dcs_simulations",
                     source: new VectorSource(),
@@ -149,13 +178,136 @@ export default {
                     typ: "VectorBase",
                     gfiAttributes: "showAll",
                     opacity: 1,
-                    renderer: "webgl",
+                    // renderer: "webgl",
                     styleId: undefined
                 },
-                layer = webgl.createLayer(attributes);
+                layer = webgl.createLayer(attributes);*/
 
-            layer.setZIndex(9999);
-            this.map.addLayer(layer);
+            this.workingLayer = new VectorLayer({
+                source: new VectorSource(),
+                name: "dcs_simulations",
+                id: "dcs_simulations"
+            });
+
+            this.workingLayer.setZIndex(10002);
+            this.map.addLayer(this.workingLayer);
+        },
+        loadGrid () {
+            fetch("/portal/dcs/assets/grid.geojson").then(response => {
+                return response.json();
+            }).then(geojsonData => {
+                this.gridLayer = new VectorLayer({
+                    id: "gridLayer",
+                    name: "gridLayer",
+                    source: new VectorSource({
+                        features: new GeoJSON().readFeatures(geojsonData, {
+                            dataProjection: "EPSG:4326",
+                            featureProjection: this.projection
+                        })
+                    }),
+                    style: new Style({
+                        stroke: new Stroke({
+                            color: "#CFF0FF",
+                            width: 1
+                        }),
+                        fill: new Fill({
+                            color: "rgba(255, 255, 255, 0.35)"
+                        })
+                    }),
+                    visible: false
+                });
+
+                this.highlightLayer = new VectorLayer({
+                    id: "gridHighlight",
+                    source: new VectorSource(),
+                    style: new Style({
+                        stroke: new Stroke({
+                            color: "#58AED6",
+                            width: 3
+                        }),
+                        fill: new Fill({
+                            color: "rgba(0, 0, 0, 0)"
+                        })
+                    }),
+                    visible: false
+                });
+
+                this.gridLayer.setZIndex(10000);
+                this.highlightLayer.setZIndex(10001);
+                this.map.addLayer(this.gridLayer);
+                this.map.addLayer(this.highlightLayer);
+                this.addInteraction();
+            });
+        },
+        addInteraction () {
+            // save context for callback functions
+            // eslint-disable-next-line
+            const vm = this;
+
+            this.selectInteraction = new Select({
+                condition: pointerMove,
+                layers: [this.gridLayer],
+                style: new Style({
+                    stroke: new Stroke({
+                        color: "#58AED6",
+                        width: 3
+                    }),
+                    fill: new Fill({
+                        color: "rgba(0, 0, 0, 0)"
+                    })
+                })
+            });
+
+            this.map.addInteraction(this.selectInteraction);
+
+            // push feature to highlightLayer to prevent stroke overlap
+            this.selectInteraction.on("select", evt => {
+                const selected = evt.selected,
+                    deselected = evt.deselected;
+
+                if (deselected.length > 0) {
+                    this.highlightLayer.getSource().removeFeature(deselected[0]);
+                }
+
+                if (selected.length > 0) {
+                    this.highlightLayer.getSource().addFeature(selected[0]);
+                }
+            });
+
+            // make cursor pointer on hover
+            this.map.on("pointermove", evt => {
+                if (evt.dragging) {
+                    return;
+                }
+
+                const pixel = this.map.getEventPixel(evt.originalEvent),
+                    hit = this.map.hasFeatureAtPixel(pixel);
+
+                this.map.getTargetElement().style.cursor = hit ? "pointer" : "";
+            });
+
+            // make grid clickable and send selected Feature to working layer
+            this.map.on("singleclick", function (evt) {
+                // context of this got lost in callback function, so using saved state from const
+                vm.map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
+                    if (layer.get("id") === "gridLayer") {
+                        const clonedFeature = feature.clone(),
+                            uid = vm.createUniqueId();
+
+                        clonedFeature.setId("draw-" + vm.dataSets.length);
+                        clonedFeature.set("featType", "drawing");
+                        clonedFeature.set("dataset", uid);
+
+                        vm.removeExistingFeature();
+                        vm.workingLayer.getSource().addFeature(clonedFeature);
+                        vm.rerenderVectorLayer();
+                    }
+                });
+            });
+        },
+        toggleGrid (value) {
+            this.gridLayer.setVisible(value);
+            this.highlightLayer.setVisible(value);
         },
         updateFeatures () {
             if (this.source.getFeatures().find(feature => feature.getId() === "draw-" + this.dataSets.length)) {
@@ -192,6 +344,7 @@ export default {
 
                     event.feature.setId("draw-" + order); // give the feature an id
                     event.feature.set("featType", "drawing");
+                    event.feature.set("strokeWidth", "5px");
                     this.removeExistingFeature();
                     this.createExtent(event.feature);
                     this.drawActive = false;
@@ -202,6 +355,7 @@ export default {
                         this.draw.finishDrawing();
                         this.map.removeInteraction(this.draw);
                         this.buttonActive = false;
+                        this.rerenderVectorLayer();
                     }
                 });
 
@@ -245,6 +399,7 @@ export default {
 
                         // Update the geometry coordinates
                         if (!geometry) {
+                            // eslint-disable-next-line
                             geometry = new Polygon([squareCoordinates]);
                         }
                         else {
@@ -282,7 +437,14 @@ export default {
         },
         createExtent (feature) {
             const extent = feature.getGeometry().getExtent(),
-                sizeCheck = getSize(extent);
+                sizeCheck = getSize(extent),
+                polygonStyle = new Style({
+                    stroke: new Stroke({
+                        color: "red",
+                        width: 3
+                    }),
+                    fill: null
+                });
 
             if (sizeCheck[0] > 500 || sizeCheck[1] > 500) {
                 const x = sizeCheck[0] >= 500 ? this.$t("additional:modules.tools.windSimulation.x500") : null,
@@ -294,23 +456,19 @@ export default {
             }
 
             feature.setGeometry(fromExtent(extent));
-            feature.styleRule = {
-                style: {
-                    polygonFillColor: [0, 0, 0, 0],
-                    polygonStrokeColor: [255, 0, 0, 1],
-                    polygonStrokeWidth: 3
-                }
-            };
+            feature.setStyle(polygonStyle);
 
         },
         createStyle (feature) {
-            feature.styleRule = {
-                style: {
-                    polygonFillColor: [0, 0, 0, 0],
-                    polygonStrokeColor: [255, 0, 0, 1],
-                    polygonStrokeWidth: 3
-                }
-            };
+            const polygonStyle = new Style({
+                stroke: new Stroke({
+                    color: "red",
+                    width: 3
+                }),
+                fill: null
+            });
+
+            feature.setStyle(polygonStyle);
         },
         fixExtent (extent, x, y) {
             const newX = x > 500 ? 500 : x,
@@ -325,18 +483,19 @@ export default {
             this.fixedExtent = feature;
         },
         confirmFix () {
-            const order = this.dataSets.length;
+            const order = this.dataSets.length,
+                polygonStyle = new Style({
+                    stroke: new Stroke({
+                        color: "red",
+                        width: 3
+                    }),
+                    fill: null
+                });
 
             this.removeExistingFeature();
-            this.fixedExtent.styleRule = {
-                style: {
-                    polygonFillColor: [0, 0, 0, 0],
-                    polygonStrokeColor: [255, 0, 0, 1],
-                    polygonStrokeWidth: 3
-                }
-            };
 
             this.fixedExtent.setId("draw-" + order);
+            this.fixedExtent.setStyle(polygonStyle);
             this.source.addFeature(this.fixedExtent);
             this.rerenderVectorLayer();
             this.modalActive = false;
@@ -407,6 +566,7 @@ export default {
                     results: null,
                     type: this.type,
                     area: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}),
+                    dataset: feature.get("dataset"),
                     windSpeed: this.windSpeed,
                     windDirection: this.windDirection,
                     showDrawing: this.showDrawing,
@@ -447,6 +607,7 @@ export default {
                     results: null,
                     type: this.type,
                     area: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}),
+                    dataset: feature.get("dataset"),
                     maxSpeed: this.maxSpeed,
                     trafficQuota: this.trafficQuota,
                     showDrawing: this.showDrawing,
@@ -501,8 +662,10 @@ export default {
         },
         addFeaturesToVectorLayer (dataSet) {
             this.results.forEach((feature, index) => {
-                let color;
+                let color,
+                    polygonStyle = {};
                 const format = new GeoJSON(),
+                    // create openlayers feature from JSON
                     feat = format.readFeature(feature, {featureProjection: this.projection}),
                     value = feat.get("value");
 
@@ -510,6 +673,7 @@ export default {
                 feat.set("type", this.type);
                 feat.set("source", dataSet.id);
                 feat.set("featType", "simulation");
+                feat.set("dataset", dataSet.dataset);
 
                 if (this.type === "wind") {
                     color = this.colorSpace.wind[value];
@@ -520,11 +684,14 @@ export default {
                 }
 
                 feat.set("styling", color);
-                feat.styleRule = {
-                    style: {
-                        polygonFillColor: color
-                    }
-                };
+
+                polygonStyle = new Style({
+                    fill: new Fill({
+                        color: color
+                    })
+                });
+
+                feat.setStyle(polygonStyle);
 
                 this.source.addFeature(feat);
             });
@@ -535,65 +702,63 @@ export default {
             if (this.source.getFeatures().length) {
                 this.source.getFeatures().forEach(feature => {
                     if (feature.get("featType") === "drawing") {
-                        if (feature.getId() === "draw-" + this.activeSet && this.dataSets[this.activeSet]) {
-                            if (!this.dataSets[this.activeSet].showDrawing) {
-                                feature.styleRule = {
-                                    style: {
-                                        polygonFillColor: [0, 0, 0, 0],
-                                        polygonStrokeColor: [0, 0, 0, 0],
-                                        polygonStrokeWidth: 0
-                                    }
-                                };
+                        if (feature.getId() === "draw-" + this.activeSet) {
+                            /* OLD LOGIC WITH DRAWING VISIBLE ON MAP if (!this.dataSets[this.activeSet].showDrawing) {
+                                feature.setStyle(null);
                             }
                             else if (this.dataSets[this.activeSet].showDrawing) {
-                                feature.styleRule = {
-                                    style: {
-                                        polygonFillColor: [0, 0, 0, 0],
-                                        polygonStrokeColor: [255, 0, 0, 1],
-                                        polygonStrokeWidth: 3
-                                    }
-                                };
-                            }
+                                const polygonStyle = new Style({
+                                    stroke: new Stroke({
+                                        color: "red",
+                                        width: 3
+                                    }),
+                                    fill: null
+                                });
+
+                                feature.setStyle(polygonStyle);
+                            }*/
+
+                            const polygonStyle = new Style({
+                                stroke: new Stroke({
+                                    color: "red",
+                                    width: 1
+                                }),
+                                fill: null
+                            });
+
+                            feature.setStyle(polygonStyle);
                         }
-                        else if (feature.getId() === "draw-" + this.activeSet && !this.dataSets[this.activeSet]) {
-                            feature.styleRule = {
-                                style: {
-                                    polygonFillColor: [0, 0, 0, 0],
-                                    polygonStrokeColor: [255, 0, 0, 1],
-                                    polygonStrokeWidth: 3
-                                }
-                            };
+                        else if (feature.getId() === "draw-" + this.dataSets.length) {
+                            console.log("should work for drawings wo set");
+                            const polygonStyle = new Style({
+                                stroke: new Stroke({
+                                    color: "red",
+                                    width: 3
+                                }),
+                                fill: null
+                            });
+
+                            feature.setStyle(polygonStyle);
+
                         }
                         else {
-                            feature.styleRule = {
-                                style: {
-                                    polygonFillColor: [0, 0, 0, 0],
-                                    polygonStrokeColor: [0, 0, 0, 0],
-                                    polygonStrokeWidth: 0
-                                }
-                            };
+                            feature.setStyle(null);
                         }
                     }
 
                     if (feature.get("featType") === "simulation") {
                         if (feature.get("source") === this.dataSets[this.activeSet].id) {
-                            const color = feature.get("styling");
+                            const color = feature.get("styling"),
+                                polygonStyle = new Style({
+                                    fill: new Fill({
+                                        color: color
+                                    })
+                                });
 
-                            feature.styleRule = {
-                                style: {
-                                    polygonStrokeWidth: 0,
-                                    polygonFillColor: color
-                                }
-                            };
+                            feature.setStyle(polygonStyle);
                         }
                         else {
-                            feature.styleRule = {
-                                style: {
-                                    polygonFillColor: [0, 0, 0, 0],
-                                    polygonStrokeColor: [0, 0, 0, 0],
-                                    polygonStrokeWidth: 0
-                                }
-                            };
+                            feature.setStyle(null);
                         }
                     }
                 });
@@ -711,7 +876,9 @@ export default {
             }
         },
         removeSet (activeSet) {
+            this.removeFeaturesFromLayer(this.dataSets[activeSet].dataset);
             this.dataSets.splice(activeSet, 1);
+            this.updateDrawFeatureIds();
 
             if (this.activeSet >= 1) {
                 this.activeSet -= 1;
@@ -719,6 +886,32 @@ export default {
             else {
                 this.activeSet = 0;
             }
+        },
+        removeFeaturesFromLayer (uid) {
+            const featuresToRemove = [],
+                source = this.workingLayer.getSource();
+
+            source.forEachFeature((feature) => {
+                if (feature.get("dataset") === uid) {
+                    featuresToRemove.push(feature);
+                }
+            });
+
+            featuresToRemove.forEach((feature) => {
+                source.removeFeature(feature);
+            });
+        },
+        updateDrawFeatureIds () {
+            this.dataSets.forEach((dataSet, index) => {
+                this.layer.getSource().getFeatures().forEach((feature) => {
+                    if (feature.get("featType") === "drawing" && feature.get("dataset") === dataSet.dataset) {
+                        feature.setId(`draw-${index}`);
+                    }
+                });
+            });
+        },
+        createUniqueId () {
+            return `id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         },
         logoutUser () {
             AuthService.logout(this.refreshToken);
@@ -830,7 +1023,8 @@ export default {
                         </button>
                     </div>
                     <div class="section draw">
-                        <button
+                        <!-- DRAW BUTTONS (not used anymore)
+                        button
                             :class="{draw: buttonActive}"
                             @click="createDraw()"
                         >
@@ -841,16 +1035,16 @@ export default {
                             @click="createSquare()"
                         >
                             <i class="bi bi-pencil-square" />
-                        </button>
+                        </button>-->
                         <div class="input">
                             <!--eslint-disable-next-line-->
                             <input
                                 id="show_drawing"
-                                v-model="showDrawing"
                                 type="checkbox"
+                                @change="toggleGrid($event.target.checked)"
                             >
                             <div class="label">
-                                <p>Show/ hide drawing</p>
+                                <p>{{ $t('additional:modules.tools.windSimulation.showGrid') }}</p>
                             </div>
                         </div>
                     </div>
@@ -1253,12 +1447,55 @@ export default {
         display: flex;
         flex-flow: row wrap;
         align-items: center;
-        .sub_title {
-            font-size:120%;
-            color:#444;
-            border:none;
-            padding:0;
-            margin:0;
+        .header {
+            display: flex;
+            flex-flow: row wrap;
+            justify-content: space-between;
+            .sub_title {
+                font-size:120%;
+                color:#444;
+                border:none;
+                padding:0;
+                margin:0;
+            }
+
+            .logout {
+                flex:0 0 30px;
+                height:30px;
+                background:whitesmoke;
+                border-radius:5px;
+                border:none;
+                font-size: 16px;
+                line-height: 30px;
+            }
+
+            .logout_input {
+                display:flex;
+                flex-flow:row wrap;
+                justify-content:flex-end;
+                flex:1 0 100%;
+                background:whitesmoke;
+                border-radius:5px;
+                padding:10px;
+                box-sizing: border-box;
+
+                p {
+                    line-height:30px;
+                    font-family:system-ui;
+                }
+
+                button {
+                    height:30px;
+                    padding:5px 10px;
+                    box-sizing: border-box;
+                    background:$masterportal_blue;
+                    color:whitesmoke;
+                    border:none;
+                    border-radius:5px;
+                    font-family:system-ui;
+                    margin-left:5px;
+                }
+            }
         }
 
         .break_title {

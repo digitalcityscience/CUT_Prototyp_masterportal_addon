@@ -28,6 +28,7 @@ const state = {
     id: "WindSimulation",
     // defaults for config.json parameters
     name: "DCS Simulations",
+    showGrid: true,
     icon: "bi-bullseye",
     renderToWindow: false,
     resizableWindow: false,

@@ -9,6 +9,7 @@
                 "title_pedestrians": "Pedestrians",
                 "title_stormwater": "Stormwater",
                 "title_sun": "Sun",
+                "showGrid": "Show / Hide Grid",
                 "params_wind": "Wind parameters",
                 "params_noise": "Traffic Noise parameters",
                 "runSimulation": "Run Simulation",

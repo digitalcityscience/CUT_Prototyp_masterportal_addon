@@ -604,17 +604,17 @@ export default {
                 },
                 buildings = await this.apiService.getBuildings(featureCollection, this.accessToken),
                 prepareApiDataSet = {
-                    wind_speed: this.windSpeed,
-                    wind_direction: this.windDirection,
+                    wind_speed: parseInt(this.windSpeed, 10),
+                    wind_direction: parseInt(this.windDirection, 10),
                     buildings: buildings.data
                 },
                 task = await this.apiService.postWindData(prepareApiDataSet, this.accessToken),
-                taskId = task.data.taskId,
-                taskStatus = await this.getTaskStatus(taskId, "getTaskStatusWind");
+                taskId = task.data.job_id,
+                taskStatus = await this.getTaskStatus(taskId, "wind");
 
             console.log("this", task);
 
-            if (taskStatus.data.status === "SUCCESS") {
+            if (taskStatus === "SUCCESS") {
                 const taskResult = await this.apiService.getTaskResult(taskId, this.accessToken);
 
                 this.results = taskResult.data.result.features;
@@ -669,14 +669,14 @@ export default {
                 streets = await this.apiService.getStreets(featureCollection, this.accessToken),
                 buildings = await this.apiService.getBuildings(featureCollection, this.accessToken),
                 prepareApiDataSet = {
-                    max_speed: this.maxSpeed,
-                    traffic_quota: this.trafficQuota,
+                    max_speed: parseInt(this.maxSpeed, 10),
+                    traffic_quota: parseInt(this.trafficQuota, 10),
                     buildings: buildings.data,
                     roads: streets.data
                 },
                 task = await this.apiService.postNoiseData(prepareApiDataSet, this.accessToken),
                 taskId = task.data.job_id,
-                taskStatus = await this.getTaskStatus(taskId, "getTaskStatusNoise");
+                taskStatus = await this.getTaskStatus(taskId, "noise");
 
             if (taskStatus === "SUCCESS") {
                 const taskResult = await this.apiService.getTaskResultNoise(taskId, this.accessToken);
@@ -694,16 +694,14 @@ export default {
                 LoaderOverlay.hide();
             }
         },
-        async getTaskStatus (taskId, route) {
+        async getTaskStatus (taskId, taskType) {
             let loop = true;
 
-            console.log("taskid", taskId);
             while (loop) {
-                const response = await this.apiService[route](taskId, this.accessToken);
+                const response = await this.apiService.getTaskStatus(taskId, taskType, this.accessToken);
 
-                console.log("taskid-res", response);
-                if (response.data.job_state === "SUCCESS" || response.data.job_state === "FAILURE") {
-                    return response.data.job_state;
+                if (response.data.status === "SUCCESS" || response.data.job_state === "FAILURE") {
+                    return response.data.status;
                 }
                 else if (response.data.status === "PENDING") {
                     console.log("again in 15sec");

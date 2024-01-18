@@ -4,10 +4,12 @@ import axios from "axios";
  * Service with helper functions for API requests
  */
 class ApiService {
-    // testUrl = "https://api.city-scope.hcu-hamburg.de/cut-mock/";
-    url = "https://api.city-scope.hcu-hamburg.de/";
+    url = "https://api.city-scope.hcu-hamburg.de/cut-mock/";
+    // url = "https://api.city-scope.hcu-hamburg.de/";   // prod url
     // urlWindSuffix = "trigger_calculation_wind";
     // urlNoiseSuffix = "trigger_calculation_noise";
+
+    // TODO add "cut-public-api" to url and use "wind" or "noise" with a param like taskType instead of using suffix
     urlWindSuffix = "cut-public-api/wind";
     urlNoiseSuffix = "cut-public-api/noise";
     buildingsUrl = "https://api.city-scope.hcu-hamburg.de/cut-sim-data-provider";
@@ -64,7 +66,7 @@ class ApiService {
          * @returns {Promise<any> | null} request response
          */
     postWindData (payload, access_token) {
-        return axios.post(`${this.url}${this.urlWindSuffix}/processes/wind/execution`, payload, {
+        return axios.post(`${this.url}${this.urlWindSuffix}/processes/wind-comfort/execution`, payload, {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",
@@ -95,8 +97,24 @@ class ApiService {
      * @param {*} access_token API Access Token
      * @returns {Promise<any> | null} request response
      */
+<<<<<<< HEAD
     getTaskStatusWind (taskId, access_token) {
         return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}`, {
+=======
+    getTaskStatus (taskId, taskType, access_token) {
+
+        if (taskType == 'noise') {
+            return axios.get(`${this.url}${this.urlNoiseSuffix}/jobs/${taskId}/status`, {
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "*/*",
+                    "Authorization": access_token
+                }
+            }); 
+        }
+
+        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}/status`, {
+>>>>>>> bb126ca89f419dc03e0eb9864cde875d60ed3669
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",
@@ -112,7 +130,7 @@ class ApiService {
      * @returns {Promise<any> | null} request response
      */
     getTaskStatusNoise (taskId, access_token) {
-        return axios.get(`${this.url}${this.urlNoiseSuffix}/noise/jobs/${taskId}/status`, {
+        return axios.get(`${this.url}${this.urlNoiseSuffix}/jobs/${taskId}/status`, {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",
@@ -128,7 +146,7 @@ class ApiService {
      * @returns {Promise<any> | null} request response
      */
     getTaskResult (taskId, access_token) {
-        return axios.get(`${this.url}/tasks/${taskId}`, {
+        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}/results`, {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",
@@ -144,7 +162,7 @@ class ApiService {
      * @returns {Promise<any> | null} request response
      */
     getTaskResultNoise (taskId, access_token) {
-        return axios.get(`${this.url}${this.urlNoiseSuffix}/noise/jobs/${taskId}/results`, {
+        return axios.get(`${this.url}${this.urlNoiseSuffix}/jobs/${taskId}/results`, {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",

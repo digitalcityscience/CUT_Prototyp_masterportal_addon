@@ -8,6 +8,8 @@ class ApiService {
     // url = "https://api.city-scope.hcu-hamburg.de/";   // prod url
     // urlWindSuffix = "trigger_calculation_wind";
     // urlNoiseSuffix = "trigger_calculation_noise";
+
+    // TODO add "cut-public-api" to url and use "wind" or "noise" with a param like taskType instead of using suffix
     urlWindSuffix = "cut-public-api/wind";
     urlNoiseSuffix = "cut-public-api/noise";
     buildingsUrl = "https://api.city-scope.hcu-hamburg.de/cut-sim-data-provider";
@@ -95,8 +97,19 @@ class ApiService {
      * @param {*} access_token API Access Token
      * @returns {Promise<any> | null} request response
      */
-    getTaskStatus (taskId, access_token) {
-        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}`, {
+    getTaskStatus (taskId, taskType, access_token) {
+
+        if (taskType == 'noise') {
+            return axios.get(`${this.url}${this.urlNoiseSuffix}/jobs/${taskId}/status`, {
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "*/*",
+                    "Authorization": access_token
+                }
+            }); 
+        }
+
+        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}/status`, {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",
@@ -128,7 +141,7 @@ class ApiService {
      * @returns {Promise<any> | null} request response
      */
     getTaskResult (taskId, access_token) {
-        return axios.get(`${this.url}/tasks/${taskId}`, {
+        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}/results`, {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",
@@ -144,7 +157,7 @@ class ApiService {
      * @returns {Promise<any> | null} request response
      */
     getTaskResultNoise (taskId, access_token) {
-        return axios.get(`${this.url}${this.urlNoiseSuffix}/noise/jobs/${taskId}/results`, {
+        return axios.get(`${this.url}${this.urlNoiseSuffix}/jobs/${taskId}/results`, {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",

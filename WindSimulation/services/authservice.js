@@ -13,11 +13,12 @@ class AuthService {
      * @returns {Promise<Object>} - The response object from the server.
      */
     static async login (email, password) {
-        const response = await axios.post("https://schb.city-scope.hcu-hamburg.de/auth/login", {
+        const response = await axios.post("https://api.city-scope.hcu-hamburg.de/users/auth/login", {
             email: email,
             password: password
         });
 
+        console.log("should get access token", response.data);
         return response.data;
     }
 
@@ -28,12 +29,16 @@ class AuthService {
      * @returns {Promise<Object>} - The response object from the server.
      */
     static async refresh (refreshToken, accessToken) {
-        const headers = new Headers();
-
-        headers.append("Authorization", accessToken);
-        const response = await axios.post("https://schb.city-scope.hcu-hamburg.de/auth/refresh", {
-            refresh_token: refreshToken
-        });
+        const payload = {
+                refresh_token: refreshToken
+            },
+            response = await axios.post("https://api.city-scope.hcu-hamburg.de/users/auth/login", payload, {
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "*/*",
+                    "Authorization": accessToken
+                }
+            });
 
         console.log(response);
         return response.data;
@@ -45,7 +50,7 @@ class AuthService {
      * @returns {Promise<void>} - The response object from the server.
      */
     static async logout (refreshToken) {
-        await axios.post("https://schb.city-scope.hcu-hamburg.de/auth/logout", {
+        await axios.post("https://api.city-scope.hcu-hamburg.de/users/auth/logout", {
             refresh_token: refreshToken
         });
     }

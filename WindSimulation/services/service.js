@@ -8,8 +8,8 @@ class ApiService {
     url = "https://api.city-scope.hcu-hamburg.de/";
     // urlWindSuffix = "trigger_calculation_wind";
     // urlNoiseSuffix = "trigger_calculation_noise";
-    urlWindSuffix = "wind-v2";
-    urlNoiseSuffix = "noise-v2";
+    urlWindSuffix = "cut-public-api/wind";
+    urlNoiseSuffix = "cut-public-api/noise";
     buildingsUrl = "https://api.city-scope.hcu-hamburg.de/cut-sim-data-provider";
 
 
@@ -28,14 +28,15 @@ class ApiService {
     /**
      * fetches buildings for bounding box (need for wind and noise sim)
      * @param {*} payload bounding box epsg:4326
+     * @param {*} access_token API Access Token
      * @returns {Array} array with buildings geometries
      */
-    getBuildings (payload) {
-        console.log(payload);
+    getBuildings (payload, access_token) {
         return axios.post(`${this.buildingsUrl}/buildings/`, payload, {
             headers: {
                 "Content-Type": "application/json",
-                "Accept": "*/*"
+                "Accept": "*/*",
+                "Authorization": access_token
             }
         });
     }
@@ -43,65 +44,113 @@ class ApiService {
     /**
      * fetches buildings for bounding box (need for wind and noise sim)
      * @param {*} payload bounding box epsg:4326
+     * @param {*} access_token API Access Token
      * @returns {Array} array with buildings geometries
      */
-    getStreets (payload) {
-        return axios.post(`${this.buildingsUrl}/streets/`, payload);
+    getStreets (payload, access_token) {
+        return axios.post(`${this.buildingsUrl}/streets/`, payload, {
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "*/*",
+                "Authorization": access_token
+            }
+        });
     }
 
     /**
          * posts input data to api (wind)
          * @param {Object} payload - the json object going into the api
+         * @param {*} access_token API Access Token
          * @returns {Promise<any> | null} request response
          */
-    postWindData (payload) {
-        console.log("I am getting logged", payload);
-        return axios.post(`${this.url}${this.urlWindSuffix}/processes/wind/execution`, payload);
+    postWindData (payload, access_token) {
+        return axios.post(`${this.url}${this.urlWindSuffix}/processes/wind/execution`, payload, {
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "*/*",
+                "Authorization": access_token
+            }
+        });
     }
 
     /**
          * posts input data to api (noise)
          * @param {Object} payload - the json object going into the api
+         * @param {*} access_token API Access Token
          * @returns {Promise<any> | null} request response
          */
-    postNoiseData (payload) {
-        return axios.post(`${this.url}${this.urlNoiseSuffix}/noise/execution`, payload);
+    postNoiseData (payload, access_token) {
+        return axios.post(`${this.url}${this.urlNoiseSuffix}/processes/traffic-noise/execution`, payload, {
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "*/*",
+                "Authorization": access_token
+            }
+        });
     }
 
     /**
      * get tasks status
      * @param {String} taskId - the id of the tast in the api
+     * @param {*} access_token API Access Token
      * @returns {Promise<any> | null} request response
      */
-    getTaskStatus (taskId) {
-        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}`);
+    getTaskStatus (taskId, access_token) {
+        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}`, {
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "*/*",
+                "Authorization": access_token
+            }
+        });
     }
 
     /**
      * get tasks status
      * @param {String} taskId - the id of the tast in the api
+     * @param {*} access_token API Access Token
      * @returns {Promise<any> | null} request response
      */
-    getTaskStatusNoise (taskId) {
-        return axios.get(`${this.url}${this.urlNoiseSuffix}/noise/jobs/${taskId}/status`);
+    getTaskStatusNoise (taskId, access_token) {
+        return axios.get(`${this.url}${this.urlNoiseSuffix}/noise/jobs/${taskId}/status`, {
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "*/*",
+                "Authorization": access_token
+            }
+        });
     }
 
     /**
      * get tasks status
      * @param {String} taskId - the id of the tast in the api
+     * @param {*} access_token API Access Token
      * @returns {Promise<any> | null} request response
      */
-    getTaskResult (taskId) {
-        return axios.get(`${this.url}/tasks/${taskId}`);
+    getTaskResult (taskId, access_token) {
+        return axios.get(`${this.url}/tasks/${taskId}`, {
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "*/*",
+                "Authorization": access_token
+            }
+        });
     }
 
     /**
      * get tasks status
      * @param {String} taskId - the id of the tast in the api
+     * @param {*} access_token API Access Token
      * @returns {Promise<any> | null} request response
      */
-    getTaskResultNoise (taskId) {
-        return axios.get(`${this.url}${this.urlNoiseSuffix}/noise/jobs/${taskId}/results`);
+    getTaskResultNoise (taskId, access_token) {
+        return axios.get(`${this.url}${this.urlNoiseSuffix}/noise/jobs/${taskId}/results`, {
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "*/*",
+                "Authorization": access_token
+            }
+        });
     }
 }
 

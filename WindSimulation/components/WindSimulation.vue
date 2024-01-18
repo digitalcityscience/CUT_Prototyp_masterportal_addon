@@ -94,7 +94,6 @@ export default {
             }
         },
         activeSet (newValue, oldValue) {
-            console.log("activeSet", this.activeSet);
             if (this.dataSets[newValue]) {
                 this.windDirection = this.dataSets[newValue].windDirection;
                 this.windSpeed = this.dataSets[newValue].windSpeed;
@@ -586,20 +585,20 @@ export default {
                     showDrawing: this.showDrawing,
                     img: null
                 },
-                buildings = await this.apiService.getBuildings(featureCollection),
+                buildings = await this.apiService.getBuildings(featureCollection, this.accessToken),
                 prepareApiDataSet = {
                     wind_speed: this.windSpeed,
                     wind_direction: this.windDirection,
                     buildings: buildings.data
                 },
-                task = await this.apiService.postWindData(prepareApiDataSet),
+                task = await this.apiService.postWindData(prepareApiDataSet, this.accessToken),
                 taskId = task.data.taskId,
                 taskStatus = await this.getTaskStatus(taskId);
 
             console.log("this", task);
 
             if (taskStatus.data.status === "SUCCESS") {
-                const taskResult = await this.apiService.getTaskResult(taskId);
+                const taskResult = await this.apiService.getTaskResult(taskId, this.accessToken);
 
                 this.results = taskResult.data.result.features;
                 dataSet.results = taskResult.data.result.features;
@@ -650,24 +649,20 @@ export default {
                         traffic_quota: this.trafficQuota
                     }
                 },*/
-                streets = await this.apiService.getStreets(featureCollection),
-                buildings = await this.apiService.getBuildings(featureCollection),
+                streets = await this.apiService.getStreets(featureCollection, this.accessToken),
+                buildings = await this.apiService.getBuildings(featureCollection, this.accessToken),
                 prepareApiDataSet = {
                     max_speed: this.maxSpeed,
                     traffic_quota: this.trafficQuota,
                     buildings: buildings.data,
                     roads: streets.data
                 },
-                task = await this.apiService.postNoiseData(prepareApiDataSet);
-
-                console.log(prepareApiDataSet);
-                console.log(task);
-
-                const taskId = task.data.job_id,
-                    taskStatus = await this.getTaskStatus(taskId, "getTaskStatusNoise");
+                task = await this.apiService.postNoiseData(prepareApiDataSet, this.accessToken),
+                taskId = task.data.job_id,
+                taskStatus = await this.getTaskStatus(taskId, "getTaskStatusNoise");
 
             if (taskStatus === "SUCCESS") {
-                const taskResult = await this.apiService.getTaskResultNoise(taskId);
+                const taskResult = await this.apiService.getTaskResultNoise(taskId, this.accessToken);
 
                 console.log("res", taskResult);
                 this.results = taskResult.data.result.features;
@@ -687,7 +682,7 @@ export default {
 
             console.log("taskid", taskId);
             while (loop) {
-                const response = await this.apiService[route](taskId);
+                const response = await this.apiService[route](taskId, this.accessToken);
 
                 console.log("taskid-res", response);
                 if (response.data.job_state === "SUCCESS" || response.data.job_state === "FAILURE") {
@@ -747,7 +742,20 @@ export default {
             if (this.source.getFeatures().length) {
                 this.source.getFeatures().forEach(feature => {
                     if (feature.get("featType") === "drawing") {
-                        if (feature.getId() === "draw-" + this.activeSet) {
+                        if (feature.getId() === "draw-" + this.dataSets.length) {
+                            console.log("should work for drawings wo set");
+                            const polygonStyle = new Style({
+                                stroke: new Stroke({
+                                    color: "red",
+                                    width: 3
+                                }),
+                                fill: null
+                            });
+
+                            feature.setStyle(polygonStyle);
+
+                        }
+                        else if (feature.getId() === "draw-" + this.activeSet) {
                             /* OLD LOGIC WITH DRAWING VISIBLE ON MAP if (!this.dataSets[this.activeSet].showDrawing) {
                                 feature.setStyle(null);
                             }
@@ -772,19 +780,6 @@ export default {
                             });
 
                             feature.setStyle(polygonStyle);
-                        }
-                        else if (feature.getId() === "draw-" + this.dataSets.length) {
-                            console.log("should work for drawings wo set");
-                            const polygonStyle = new Style({
-                                stroke: new Stroke({
-                                    color: "red",
-                                    width: 3
-                                }),
-                                fill: null
-                            });
-
-                            feature.setStyle(polygonStyle);
-
                         }
                         else {
                             feature.setStyle(null);
@@ -959,7 +954,7 @@ export default {
             return `id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         },
         logoutUser () {
-            AuthService.logout(this.refreshToken);
+            AuthService.logout(this.refreshToken, this.accessToken);
             this.close();
         },
         /**
@@ -1492,25 +1487,10 @@ export default {
         display: flex;
         flex-flow: row wrap;
         align-items: center;
-<<<<<<< HEAD
         .header {
             display: flex;
             flex-flow: row wrap;
             justify-content: space-between;
-=======
-
-        .header {
-            display:flex;
-            flex-flow:row wrap;
-            justify-content:space-between;
-            .logout {
-                flex:0 0 40px;
-                border:none;
-                border-radius:5px;
-                height:40px;
-                background:#ccc;
-            }
->>>>>>> origin/liveApi
             .sub_title {
                 font-size:120%;
                 color:#444;
@@ -1518,7 +1498,6 @@ export default {
                 padding:0;
                 margin:0;
             }
-<<<<<<< HEAD
 
             .logout {
                 flex:0 0 30px;
@@ -1527,13 +1506,11 @@ export default {
                 border-radius:5px;
                 border:none;
                 font-size: 16px;
-                line-height: 30px;
             }
 
             .logout_input {
                 display:flex;
                 flex-flow:row wrap;
-                justify-content:flex-end;
                 flex:1 0 100%;
                 background:whitesmoke;
                 border-radius:5px;
@@ -1557,8 +1534,6 @@ export default {
                     margin-left:5px;
                 }
             }
-=======
->>>>>>> origin/liveApi
         }
 
 
@@ -1569,11 +1544,7 @@ export default {
             font-weight: 300;
             margin: 10px 0px;
             color: #444;
-            overflow:hidden;
-
             &:after {
-                content: "";
-                position: absolute;
                 top: 50%;
                 transform: translateY(-50%);
                 left: 70px;

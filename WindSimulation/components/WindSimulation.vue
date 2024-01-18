@@ -8,7 +8,7 @@ import VectorSource from "ol/source/Vector.js";
 import Polygon, {fromExtent} from "ol/geom/Polygon";
 import GeoJSON from "ol/format/GeoJSON";
 import {getSize, getCenter} from "ol/extent";
-// import {transform} from "ol/proj";
+import {transform} from "ol/proj";
 import LoaderOverlay from "../../../src/utils/loaderOverlay.js";
 import Feature from "ol/Feature";
 import ApiService from "../services/service.js";
@@ -561,6 +561,20 @@ export default {
             LoaderOverlay.show();
             const format = new GeoJSON(),
                 feature = this.getFeature(this.dataSets.length),
+                boundingBox = format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}).geometry.coordinates[0],
+                featureCollection = {
+                    type: "FeatureCollection",
+                    features: [
+                        {
+                            type: "Feature",
+                            properties: {},
+                            geometry: {
+                                coordinates: [boundingBox],
+                                type: "Polygon"
+                            }
+                        }
+                    ]
+                },
                 dataSet = {
                     id: this.type + "-" + this.activeSet + "-" + this.counter,
                     results: null,
@@ -572,16 +586,17 @@ export default {
                     showDrawing: this.showDrawing,
                     img: null
                 },
+                buildings = await this.apiService.getBuildings(featureCollection),
                 prepareApiDataSet = {
-                    bbox: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}).geometry.coordinates[0],
-                    calculation_settings: {
-                        wind_speed: this.windSpeed,
-                        wind_direction: this.windDirection
-                    }
+                    wind_speed: this.windSpeed,
+                    wind_direction: this.windDirection,
+                    buildings: buildings.data
                 },
                 task = await this.apiService.postWindData(prepareApiDataSet),
                 taskId = task.data.taskId,
                 taskStatus = await this.getTaskStatus(taskId);
+
+            console.log("this", task);
 
             if (taskStatus.data.status === "SUCCESS") {
                 const taskResult = await this.apiService.getTaskResult(taskId);
@@ -602,6 +617,20 @@ export default {
             LoaderOverlay.show();
             const format = new GeoJSON(),
                 feature = this.getFeature(this.dataSets.length),
+                boundingBox = format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}).geometry.coordinates[0],
+                featureCollection = {
+                    type: "FeatureCollection",
+                    features: [
+                        {
+                            type: "Feature",
+                            properties: {},
+                            geometry: {
+                                coordinates: [boundingBox],
+                                type: "Polygon"
+                            }
+                        }
+                    ]
+                },
                 dataSet = {
                     id: this.type + "-" + this.activeSet + "-" + this.counter,
                     results: null,
@@ -613,20 +642,34 @@ export default {
                     showDrawing: this.showDrawing,
                     img: null
                 },
+                /* apiSet for Mock-API
                 prepareApiDataSet = {
                     bbox: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}).geometry.coordinates[0],
                     calculation_settings: {
                         max_speed: this.maxSpeed,
                         traffic_quota: this.trafficQuota
                     }
+                },*/
+                streets = await this.apiService.getStreets(featureCollection),
+                buildings = await this.apiService.getBuildings(featureCollection),
+                prepareApiDataSet = {
+                    max_speed: this.maxSpeed,
+                    traffic_quota: this.trafficQuota,
+                    buildings: buildings.data,
+                    roads: streets.data
                 },
-                task = await this.apiService.postNoiseData(prepareApiDataSet),
-                taskId = task.data.taskId,
-                taskStatus = await this.getTaskStatus(taskId);
+                task = await this.apiService.postNoiseData(prepareApiDataSet);
 
-            if (taskStatus.data.status === "SUCCESS") {
-                const taskResult = await this.apiService.getTaskResult(taskId);
+                console.log(prepareApiDataSet);
+                console.log(task);
 
+                const taskId = task.data.job_id,
+                    taskStatus = await this.getTaskStatus(taskId, "getTaskStatusNoise");
+
+            if (taskStatus === "SUCCESS") {
+                const taskResult = await this.apiService.getTaskResultNoise(taskId);
+
+                console.log("res", taskResult);
                 this.results = taskResult.data.result.features;
                 dataSet.results = taskResult.data.result.features;
 
@@ -639,18 +682,20 @@ export default {
                 LoaderOverlay.hide();
             }
         },
-        async getTaskStatus (taskId) {
+        async getTaskStatus (taskId, route) {
             let loop = true;
 
+            console.log("taskid", taskId);
             while (loop) {
-                const response = await this.apiService.getTaskStatus(taskId);
+                const response = await this.apiService[route](taskId);
 
-                if (response.data.status === "SUCCESS" || response.data.status === "FAILURE") {
-                    return response;
+                console.log("taskid-res", response);
+                if (response.data.job_state === "SUCCESS" || response.data.job_state === "FAILURE") {
+                    return response.data.job_state;
                 }
                 else if (response.data.status === "PENDING") {
-                    console.log("again in 1sec");
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    console.log("again in 15sec");
+                    await new Promise(resolve => setTimeout(resolve, 15000));
                 }
                 else {
                     loop = false;
@@ -1447,10 +1492,25 @@ export default {
         display: flex;
         flex-flow: row wrap;
         align-items: center;
+<<<<<<< HEAD
         .header {
             display: flex;
             flex-flow: row wrap;
             justify-content: space-between;
+=======
+
+        .header {
+            display:flex;
+            flex-flow:row wrap;
+            justify-content:space-between;
+            .logout {
+                flex:0 0 40px;
+                border:none;
+                border-radius:5px;
+                height:40px;
+                background:#ccc;
+            }
+>>>>>>> origin/liveApi
             .sub_title {
                 font-size:120%;
                 color:#444;
@@ -1458,6 +1518,7 @@ export default {
                 padding:0;
                 margin:0;
             }
+<<<<<<< HEAD
 
             .logout {
                 flex:0 0 30px;
@@ -1496,7 +1557,10 @@ export default {
                     margin-left:5px;
                 }
             }
+=======
+>>>>>>> origin/liveApi
         }
+
 
         .break_title {
             display:block;

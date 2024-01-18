@@ -8,7 +8,6 @@ import VectorSource from "ol/source/Vector.js";
 import Polygon, {fromExtent} from "ol/geom/Polygon";
 import GeoJSON from "ol/format/GeoJSON";
 import {getSize, getCenter} from "ol/extent";
-import {transform} from "ol/proj";
 import LoaderOverlay from "../../../src/utils/loaderOverlay.js";
 import Feature from "ol/Feature";
 import ApiService from "../services/service.js";
@@ -144,9 +143,10 @@ export default {
     async mounted () {
         if (!this.refreshToken & !this.authenticated) {
             const refreshToken = localStorage.getItem("refreshToken"),
+                loginSaved = localStorage.getItem("loginSaved"),
                 oldAccessToken = localStorage.getItem("oldAccessToken");
 
-            if (refreshToken) {
+            if (loginSaved && refreshToken) {
                 try {
                     const response = await AuthService.refresh(refreshToken, oldAccessToken);
 
@@ -304,6 +304,11 @@ export default {
                 });
             });
         },
+        /**
+         * setting the gridLayer and it's highlightLayer visible or invisible
+         * @param {Boolen} value true or false
+         * @returns {void}
+         */
         toggleGrid (value) {
             this.gridLayer.setVisible(value);
             this.highlightLayer.setVisible(value);
@@ -316,6 +321,10 @@ export default {
                 this.noDrawing = true;
             }
         },
+        /**
+         * NOT IN THE CURRENT BUILD: this function used to create a boundingbox via OpenLayers free draw - left here due to non-destructive workflow
+         * @returns {void}
+         */
         createDraw () {
             if (this.buttonActive) {
                 this.buttonActive = false;
@@ -361,6 +370,10 @@ export default {
                 this.map.addInteraction(this.draw);
             }
         },
+        /**
+         * NOT IN THE CURRENT BUILD: this function used to create a square bounding box via OpenLayers draw - left here due to non-destructive workflow
+         * @returns {void}
+         */
         createSquare () {
             if (this.squareActive) {
                 this.squareActive = false;
@@ -434,6 +447,11 @@ export default {
                 this.map.addInteraction(this.square);
             }
         },
+        /**
+         * NOT IN THE CURRENT BUILD: this function is building the square extent from the free draw function
+         * @param {Feature} feature this function takes the feature created from the createDraw() function and creates an extent
+         * @returns {void}
+         */
         createExtent (feature) {
             const extent = feature.getGeometry().getExtent(),
                 sizeCheck = getSize(extent),
@@ -456,7 +474,6 @@ export default {
 
             feature.setGeometry(fromExtent(extent));
             feature.setStyle(polygonStyle);
-
         },
         createStyle (feature) {
             const polygonStyle = new Style({
@@ -593,7 +610,7 @@ export default {
                 },
                 task = await this.apiService.postWindData(prepareApiDataSet, this.accessToken),
                 taskId = task.data.taskId,
-                taskStatus = await this.getTaskStatus(taskId);
+                taskStatus = await this.getTaskStatus(taskId, "getTaskStatusWind");
 
             console.log("this", task);
 
@@ -743,7 +760,6 @@ export default {
                 this.source.getFeatures().forEach(feature => {
                     if (feature.get("featType") === "drawing") {
                         if (feature.getId() === "draw-" + this.dataSets.length) {
-                            console.log("should work for drawings wo set");
                             const polygonStyle = new Style({
                                 stroke: new Stroke({
                                     color: "red",

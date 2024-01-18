@@ -29,12 +29,13 @@ export default {
 
                     if (response.access_token) {
                         this.setAccessToken(response.access_token);
+                        localStorage.setItem("refreshToken", response.refresh_token);
                         this.setAuthenticated(true);
                     }
 
                     if (this.saveLogin && response.refresh_token) {
                         localStorage.setItem("oldAccessToken", response.refresh_token);
-                        localStorage.setItem("refreshToken", response.refresh_token);
+                        localStorage.setItem("loginSaved", true);
                         localStorage.setItem("dcs_user", this.email);
                         localStorage.setItem("dcs_pw", this.password);
                         this.setRefreshToken(response.refresh_token);

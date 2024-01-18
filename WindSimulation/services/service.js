@@ -95,7 +95,7 @@ class ApiService {
      * @param {*} access_token API Access Token
      * @returns {Promise<any> | null} request response
      */
-    getTaskStatus (taskId, access_token) {
+    getTaskStatusWind (taskId, access_token) {
         return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}`, {
             headers: {
                 "Content-Type": "application/json",

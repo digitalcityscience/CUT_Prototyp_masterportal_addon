@@ -18,29 +18,27 @@ class AuthService {
             password: password
         });
 
-        console.log("should get access token", response.data);
         return response.data;
     }
 
     /**
      * Refreshes the user's authentication token.
-     * @param {string} refreshToken - The refresh token for renewing authentication.
-     * @param {string} accessToken - the invalid old accessToken
+     * @param {string} refresh_token - The refresh token for renewing authentication.
+     * @param {string} access_token - the invalid old accessToken
      * @returns {Promise<Object>} - The response object from the server.
      */
-    static async refresh (refreshToken, accessToken) {
+    static async refresh (refresh_token, access_token) {
         const payload = {
-                refresh_token: refreshToken
+                refresh_token: refresh_token
             },
-            response = await axios.post("https://api.city-scope.hcu-hamburg.de/users/auth/login", payload, {
+            response = await axios.post("https://api.city-scope.hcu-hamburg.de/users/auth/refresh", payload, {
                 headers: {
                     "Content-Type": "application/json",
                     "Accept": "*/*",
-                    "Authorization": accessToken
+                    "Authorization": access_token
                 }
             });
 
-        console.log(response);
         return response.data;
     }
 

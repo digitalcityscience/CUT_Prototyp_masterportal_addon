@@ -1299,22 +1299,53 @@ export default {
         align-items: center;
 
         .header {
-            display:flex;
-            flex-flow:row wrap;
-            justify-content:space-between;
-            .logout {
-                flex:0 0 40px;
-                border:none;
-                border-radius:5px;
-                height:40px;
-                background:#ccc;
-            }
+            display: flex;
+            flex-flow: row wrap;
+            justify-content: space-between;
             .sub_title {
                 font-size:120%;
                 color:#444;
                 border:none;
                 padding:0;
                 margin:0;
+            }
+
+            .logout {
+                flex:0 0 30px;
+                height:30px;
+                background:whitesmoke;
+                border-radius:5px;
+                border:none;
+                font-size: 16px;
+                line-height: 30px;
+            }
+
+            .logout_input {
+                display:flex;
+                flex-flow:row wrap;
+                justify-content:flex-end;
+                flex:1 0 100%;
+                background:whitesmoke;
+                border-radius:5px;
+                padding:10px;
+                box-sizing: border-box;
+
+                p {
+                    line-height:30px;
+                    font-family:system-ui;
+                }
+
+                button {
+                    height:30px;
+                    padding:5px 10px;
+                    box-sizing: border-box;
+                    background:$masterportal_blue;
+                    color:whitesmoke;
+                    border:none;
+                    border-radius:5px;
+                    font-family:system-ui;
+                    margin-left:5px;
+                }
             }
         }
 

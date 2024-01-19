@@ -18,6 +18,7 @@ import {Stroke, Style, Fill} from "ol/style";
 import VectorLayer from "ol/layer/Vector";
 import Select from "ol/interaction/Select";
 import {pointerMove} from "ol/events/condition";
+import intersect from "@turf/intersect";
 
 export default {
     name: "WindSimulation",
@@ -49,6 +50,7 @@ export default {
             windSpeed: 40,
             windDirection: 180,
             maxSpeed: 50,
+            maxSpeed30: 30,
             trafficQuota: 50,
             img: null,
             modalActive: false,
@@ -672,7 +674,7 @@ export default {
                     max_speed: parseInt(this.maxSpeed, 10),
                     traffic_quota: parseInt(this.trafficQuota, 10),
                     buildings: buildings.data,
-                    roads: streets.data
+                    roads: this.adjustStreets(streets.data)
                 },
                 task = await this.apiService.postNoiseData(prepareApiDataSet, this.accessToken),
                 taskId = task.data.job_id,
@@ -681,7 +683,6 @@ export default {
             if (taskStatus === "SUCCESS") {
                 const taskResult = await this.apiService.getTaskResultNoise(taskId, this.accessToken);
 
-                console.log("res", taskResult);
                 this.results = taskResult.data.result.features;
                 dataSet.results = taskResult.data.result.features;
 
@@ -715,40 +716,47 @@ export default {
 
             return null;
         },
-        addFeaturesToVectorLayer (dataSet) {
+        async addFeaturesToVectorLayer (dataSet) {
+            const format = new GeoJSON(),
+                turfPolygon = dataSet.area;
+
             this.results.forEach((feature, index) => {
-                let color,
-                    polygonStyle = {};
-                const format = new GeoJSON(),
+                const cutFeature = intersect(turfPolygon, feature),
+                    properties = feature.properties;
+
+                if (intersect(turfPolygon, feature)) {
+                    let color,
+                        polygonStyle = {};
                     // create openlayers feature from JSON
-                    feat = format.readFeature(feature, {featureProjection: this.projection}),
-                    value = feat.get("value");
+                    const feat = format.readFeature(cutFeature, {featureProjection: this.projection});
 
-                feat.setId(dataSet.id + "-" + index);
-                feat.set("type", this.type);
-                feat.set("source", dataSet.id);
-                feat.set("featType", "simulation");
-                feat.set("dataset", dataSet.dataset);
+                    feat.setProperties(properties);
+                    feat.setId(dataSet.id + "-" + index);
+                    feat.set("type", this.type);
+                    feat.set("source", dataSet.id);
+                    feat.set("featType", "simulation");
+                    feat.set("dataset", dataSet.dataset);
 
-                if (this.type === "wind") {
-                    color = this.colorSpace.wind[value];
+                    if (this.type === "wind") {
+                        color = this.colorSpace.wind[feat.get("value")];
+                    }
+
+                    if (this.type === "noise") {
+                        color = this.colorSpace.noise[feat.get("value")];
+                    }
+
+                    feat.set("styling", color);
+
+                    polygonStyle = new Style({
+                        fill: new Fill({
+                            color: color
+                        })
+                    });
+
+                    feat.setStyle(polygonStyle);
+
+                    this.source.addFeature(feat);
                 }
-
-                if (this.type === "noise") {
-                    color = this.colorSpace.noise[value];
-                }
-
-                feat.set("styling", color);
-
-                polygonStyle = new Style({
-                    fill: new Fill({
-                        color: color
-                    })
-                });
-
-                feat.setStyle(polygonStyle);
-
-                this.source.addFeature(feat);
             });
 
             this.source.changed();
@@ -819,6 +827,23 @@ export default {
 
                 this.source.changed();
             }
+        },
+        adjustStreets (streets) {
+            streets.features.forEach(street => {
+                if (street.properties.max_speed === 30) {
+                    street.properties.max_speed = this.maxSpeed30;
+                }
+
+                if (street.properties.max_speed === 50) {
+                    street.properties.max_speed = this.maxSpeed;
+                }
+
+                if (street.properties.max_speed > this.maxSpeed) {
+                    street.properties.max_speed = this.maxSpeed;
+                }
+            });
+
+            return streets;
         },
         async createPNG () {
 
@@ -1194,32 +1219,65 @@ export default {
                                 <i class="bi bi-car-front" />
                                 <p><strong>{{ $t('additional:modules.tools.windSimulation.params_noise') }}</strong></p>
                             </div>
-                            <div class="row">
-                                <div class="input">
-                                    <div class="labels">
-                                        <div class="label">
-                                            <p>{{ minNoise }} km/h</p>
-                                        </div>
-                                        <div class="label">
-                                            <p>{{ maxNoise }} km/h</p>
-                                        </div>
+                            <span class="sub_section">
+                                <div class="row">
+                                    <div class="road_sign">
+                                        30
                                     </div>
-                                    <!--eslint-disable-next-line-->
+                                    <div class="input">
+                                        <div class="labels">
+                                            <div class="label">
+                                                <p>{{ minNoise }} km/h</p>
+                                            </div>
+                                            <div class="label">
+                                                <p>{{ maxNoise }} km/h</p>
+                                            </div>
+                                        </div>
+                                        <!--eslint-disable-next-line-->
+                                        <input
+                                            id="maxSpeed_slider"
+                                            v-model="maxSpeed30"
+                                            type="range"
+                                            :min="minNoise"
+                                            :max="maxNoise"
+                                            step="10"
+                                            value="30"
+                                            class="simulation_slider slider"
+                                        >
+                                    </div>
+                                    <p class="value">
+                                        {{ maxSpeed30 }} km/h
+                                    </p>
+                                </div><div class="row">
+                                    <div class="road_sign">
+                                        50
+                                    </div>
+                                    <div class="input">
+                                        <div class="labels">
+                                            <div class="label">
+                                                <p>{{ minNoise }} km/h</p>
+                                            </div>
+                                            <div class="label">
+                                                <p>{{ maxNoise }} km/h</p>
+                                            </div>
+                                        </div>
+                                        <!--eslint-disable-next-line-->
                                     <input
-                                        id="maxSpeed_slider"
-                                        v-model="maxSpeed"
-                                        type="range"
-                                        :min="minNoise"
-                                        :max="maxNoise"
-                                        step="10"
-                                        value="50"
-                                        class="simulation_slider slider"
-                                    >
+                                            id="maxSpeed_slider"
+                                            v-model="maxSpeed"
+                                            type="range"
+                                            :min="minNoise"
+                                            :max="maxNoise"
+                                            step="10"
+                                            value="50"
+                                            class="simulation_slider slider"
+                                        >
+                                    </div>
+                                    <p class="value">
+                                        {{ maxSpeed }} km/h
+                                    </p>
                                 </div>
-                                <p class="value">
-                                    {{ maxSpeed }} km/h
-                                </p>
-                            </div>
+                            </span>
                             <div class="row">
                                 <div class="input">
                                     <div class="labels">
@@ -1726,6 +1784,34 @@ export default {
                 background:#eee;
                 padding:20px;
 
+                .sub_section {
+                    width:100%;
+                    padding:15px;
+                    background: rgba(0,0,40, 0.05);
+                    border-radius:3px;
+                    margin-bottom:10px;
+
+                    .input {
+                        flex-basis:calc(100% - 120px);
+                    }
+
+                    .road_sign {
+                        display:flex;
+                        flex-flow:row wrap;
+                        justify-content:center;
+                        align-items:center;
+                        width:30px;
+                        height:30px;
+                        margin-right:10px;
+                        border:3px solid red;
+                        border-radius:50%;
+                        background: white;
+                        color: #222;
+                        padding-top: 3px;
+                        font-weight: 900;
+                    }
+                }
+
                 .run_sim {
                     margin:30px 0px;
                 }
@@ -1740,8 +1826,8 @@ export default {
                 margin:3px 0px;
 
                 p.value {
-                        flex:0 0 70px;
-                        margin-right:8px;
+                        flex:1 0 70px;
+                        margin-right:0px;
                         background:whitesmoke;
                         border:1px solid #ddd;
                         font-size:100%;
@@ -1753,7 +1839,7 @@ export default {
                     display:flex;
                     flex-flow:row wrap;
                     justify-content: flex-start;
-                    flex-basis:calc(100% - 80px);
+                    flex-basis:calc(100% - 84px);
                     padding-left:0px;
 
                     .labels {

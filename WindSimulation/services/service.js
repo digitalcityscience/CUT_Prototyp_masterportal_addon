@@ -94,27 +94,23 @@ class ApiService {
     /**
      * get tasks status
      * @param {String} taskId - the id of the tast in the api
+     * @param {*} taskType type of simulation task (noise, wind, stormwater, ...)
      * @param {*} access_token API Access Token
      * @returns {Promise<any> | null} request response
      */
-<<<<<<< HEAD
-    getTaskStatusWind (taskId, access_token) {
-        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}`, {
-=======
     getTaskStatus (taskId, taskType, access_token) {
 
-        if (taskType == 'noise') {
+        if (taskType === "noise") {
             return axios.get(`${this.url}${this.urlNoiseSuffix}/jobs/${taskId}/status`, {
                 headers: {
                     "Content-Type": "application/json",
                     "Accept": "*/*",
                     "Authorization": access_token
                 }
-            }); 
+            });
         }
 
         return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}/status`, {
->>>>>>> bb126ca89f419dc03e0eb9864cde875d60ed3669
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",

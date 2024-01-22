@@ -49,7 +49,7 @@ export default {
             maxNoise: 100,
             windSpeed: 40,
             windDirection: 180,
-            maxSpeed: 50,
+            maxSpeed50: 50,
             maxSpeed30: 30,
             trafficQuota: 50,
             img: null,
@@ -655,7 +655,7 @@ export default {
                     type: this.type,
                     area: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}),
                     dataset: feature.get("dataset"),
-                    maxSpeed: this.maxSpeed,
+                    maxSpeed50: this.maxSpeed50,
                     trafficQuota: this.trafficQuota,
                     showDrawing: this.showDrawing,
                     img: null
@@ -664,15 +664,13 @@ export default {
                 prepareApiDataSet = {
                     bbox: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}).geometry.coordinates[0],
                     calculation_settings: {
-                        max_speed: this.maxSpeed,
+                        max_speed: this.maxSpeed50,
                         traffic_quota: this.trafficQuota
                     }
                 },*/
                 streets = await this.apiService.getStreets(featureCollection, this.accessToken),
                 buildings = await this.apiService.getBuildings(featureCollection, this.accessToken),
                 prepareApiDataSet = {
-                    max_speed: parseInt(this.maxSpeed, 10),
-                    traffic_quota: parseInt(this.trafficQuota, 10),
                     buildings: buildings.data,
                     roads: this.adjustStreets(streets.data)
                 },
@@ -830,16 +828,17 @@ export default {
         },
         adjustStreets (streets) {
             streets.features.forEach(street => {
-                if (street.properties.max_speed === 30) {
-                    street.properties.max_speed = this.maxSpeed30;
-                }
+                if (street.properties.traffic_settings_adjustable) {
+                    // adjust speed
+                    if (street.properties.max_speed === 30) {
+                        street.properties.max_speed = parseInt(this.maxSpeed30);
+                    } else if (street.properties.max_speed === 50) {
+                        street.properties.max_speed = parseInt(this.maxSpeed50);
+                    }
 
-                if (street.properties.max_speed === 50) {
-                    street.properties.max_speed = this.maxSpeed;
-                }
-
-                if (street.properties.max_speed > this.maxSpeed) {
-                    street.properties.max_speed = this.maxSpeed;
+                    // adjust traffic amounts
+                    street.properties.truck_traffic_daily = street.properties.truck_traffic_daily * (parseInt(this.trafficQuota)/100);
+                    street.properties.car_traffic_daily = street.properties.car_traffic_daily * (parseInt(this.trafficQuota)/100);
                 }
             });
 
@@ -1264,7 +1263,7 @@ export default {
                                         <!--eslint-disable-next-line-->
                                     <input
                                             id="maxSpeed_slider"
-                                            v-model="maxSpeed"
+                                            v-model="maxSpeed50"
                                             type="range"
                                             :min="minNoise"
                                             :max="maxNoise"
@@ -1274,7 +1273,7 @@ export default {
                                         >
                                     </div>
                                     <p class="value">
-                                        {{ maxSpeed }} km/h
+                                        {{ maxSpeed50 }} km/h
                                     </p>
                                 </div>
                             </span>

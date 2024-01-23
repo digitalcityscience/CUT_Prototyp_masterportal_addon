@@ -606,7 +606,7 @@ export default {
                 },
                 buildings = await this.apiService.getBuildings(featureCollection, this.accessToken),
                 prepareApiDataSet = {
-                    wind_speed: parseInt(this.windSpeed, 10),
+                    wind_speed: (parseInt(this.windSpeed, 10) / 3.6),   // wind_speed in m/s
                     wind_direction: parseInt(this.windDirection, 10),
                     buildings: buildings.data
                 },

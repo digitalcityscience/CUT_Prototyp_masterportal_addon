@@ -619,8 +619,8 @@ export default {
             if (taskStatus === "SUCCESS") {
                 const taskResult = await this.apiService.getTaskResult(taskId, this.accessToken);
 
-                this.results = taskResult.data.result.features;
-                dataSet.results = taskResult.data.result.features;
+                this.results = taskResult.data.result.geojson.features;
+                dataSet.results = taskResult.data.result.geojson.features;
 
                 await this.addFeaturesToVectorLayer(dataSet);
                 this.dataSets.push(dataSet);

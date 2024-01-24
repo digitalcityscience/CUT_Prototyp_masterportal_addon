@@ -35,7 +35,7 @@ const state = {
     isVisibleInMenu: true,
     initialWidth: 500,
     deactivateGFI: true,
-    //url: "https://api.city-scope.hcu-hamburg.de/",
+    // url: "https://api.city-scope.hcu-hamburg.de/",
     url: "https://api.city-scope.hcu-hamburg.de/cut-mock/",
     urlWindSuffix: "cut-public-api/wind",
     urlNoiseSuffix: "cut-public-api/noise",

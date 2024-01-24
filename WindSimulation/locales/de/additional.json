@@ -10,6 +10,7 @@
                 "title_stormwater": "Stormwater",
                 "title_sun": "Sun",
                 "showGrid": "Show / Hide Grid",
+                "showStreets": "Show / Hide Streets",
                 "params_wind": "Wind parameters",
                 "params_noise": "Traffic Noise parameters",
                 "runSimulation": "Run Simulation",
@@ -23,6 +24,8 @@
                 "settings": "Settings",
                 "results": "Results",
                 "zoomToTile": "Zoom map to simulation tile",
+                "noDrawing": "Please select a tile on the map!",
+                "noParams": "Missing input parameters. Please check you input options!",
                 "auth": {
                     "mail": "Benutzer",
                     "pw": "Passwort",

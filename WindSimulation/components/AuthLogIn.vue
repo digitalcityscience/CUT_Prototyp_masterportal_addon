@@ -37,7 +37,6 @@ export default {
                         localStorage.setItem("oldAccessToken", response.refresh_token);
                         localStorage.setItem("loginSaved", true);
                         localStorage.setItem("dcs_user", this.email);
-                        localStorage.setItem("dcs_pw", this.password);
                         this.setRefreshToken(response.refresh_token);
                     }
 

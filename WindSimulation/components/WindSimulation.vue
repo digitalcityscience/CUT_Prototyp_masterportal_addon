@@ -19,6 +19,10 @@ import VectorLayer from "ol/layer/Vector";
 import Select from "ol/interaction/Select";
 import {pointerMove} from "ol/events/condition";
 import intersect from "@turf/intersect";
+import buffer from "@turf/buffer";
+import lineSplit from "@turf/line-split";
+import polygonToLine from "@turf/polygon-to-line";
+import booleanWithin from "@turf/boolean-within";
 
 export default {
     name: "WindSimulation",
@@ -43,6 +47,7 @@ export default {
             drawActive: false,
             noDrawing: true,
             showDrawing: true,
+            showStreets: true,
             min: 0,
             max: 80,
             minNoise: 0,
@@ -126,6 +131,9 @@ export default {
         },
         showDrawing () {
             this.dataSets[this.activeSet].showDrawing = this.showDrawing;
+            this.rerenderVectorLayer();
+        },
+        showStreets () {
             this.rerenderVectorLayer();
         }
     },
@@ -579,7 +587,9 @@ export default {
             LoaderOverlay.show();
             const format = new GeoJSON(),
                 feature = this.getFeature(this.dataSets.length),
-                boundingBox = format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}).geometry.coordinates[0],
+                featureJson = format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}),
+                bufferedArea = buffer(featureJson, 100, {units: "meters"}),
+                boundingBox = bufferedArea.geometry.coordinates[0],
                 featureCollection = {
                     type: "FeatureCollection",
                     features: [
@@ -597,7 +607,8 @@ export default {
                     id: this.type + "-" + this.activeSet + "-" + this.counter,
                     results: null,
                     type: this.type,
-                    area: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}),
+                    area: featureJson,
+                    bufferedArea: bufferedArea,
                     dataset: feature.get("dataset"),
                     windSpeed: this.windSpeed,
                     windDirection: this.windDirection,
@@ -606,7 +617,7 @@ export default {
                 },
                 buildings = await this.apiService.getBuildings(featureCollection, this.accessToken),
                 prepareApiDataSet = {
-                    wind_speed: (parseInt(this.windSpeed, 10) / 3.6),   // wind_speed in m/s
+                    wind_speed: parseInt(this.windSpeed, 10) / 3.6, // wind_speed in m/s
                     wind_direction: parseInt(this.windDirection, 10),
                     buildings: buildings.data
                 },
@@ -614,13 +625,11 @@ export default {
                 taskId = task.data.job_id,
                 taskStatus = await this.getTaskStatus(taskId, "wind");
 
-            console.log("this", task);
-
             if (taskStatus === "SUCCESS") {
                 const taskResult = await this.apiService.getTaskResult(taskId, this.accessToken);
 
-                this.results = taskResult.data.result.features;
-                dataSet.results = taskResult.data.result.features;
+                this.results = taskResult.data.result.geojson.features;
+                dataSet.results = taskResult.data.result.geojson.features;
 
                 await this.addFeaturesToVectorLayer(dataSet);
                 this.dataSets.push(dataSet);
@@ -635,7 +644,9 @@ export default {
             LoaderOverlay.show();
             const format = new GeoJSON(),
                 feature = this.getFeature(this.dataSets.length),
-                boundingBox = format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}).geometry.coordinates[0],
+                featureJson = format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}),
+                bufferedArea = buffer(featureJson, 100, {units: "meters"}),
+                boundingBox = bufferedArea.geometry.coordinates[0],
                 featureCollection = {
                     type: "FeatureCollection",
                     features: [
@@ -653,8 +664,10 @@ export default {
                     id: this.type + "-" + this.activeSet + "-" + this.counter,
                     results: null,
                     type: this.type,
-                    area: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}),
+                    area: featureJson,
+                    bufferedArea: bufferedArea,
                     dataset: feature.get("dataset"),
+                    maxSpeed30: this.maxSpeed30,
                     maxSpeed50: this.maxSpeed50,
                     trafficQuota: this.trafficQuota,
                     showDrawing: this.showDrawing,
@@ -683,6 +696,7 @@ export default {
 
                 this.results = taskResult.data.result.geojson.features;
                 dataSet.results = taskResult.data.result.geojson.features;
+                dataSet.streets = this.adjustStreets(streets.data);
 
                 await this.addFeaturesToVectorLayer(dataSet);
                 this.dataSets.push(dataSet);
@@ -703,8 +717,8 @@ export default {
                     return response.data.status;
                 }
                 else if (response.data.status === "PENDING") {
-                    console.log("again in 15sec");
-                    await new Promise(resolve => setTimeout(resolve, 15000));
+                    console.log("again in 2sec");
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 }
                 else {
                     loop = false;
@@ -757,6 +771,33 @@ export default {
                 }
             });
 
+            // add streets to map as well
+            if (dataSet.type === "noise" && dataSet.streets) {
+                dataSet.streets.features.forEach((street, index) => {
+                    if (street.geometry && street.geometry.coordinates) {
+                        const properties = street.properties,
+
+                            // create openlayers feature from JSON
+                            feat = format.readFeature(street.geometry, {featureProjection: this.projection}),
+                            streetStyle = new Style({
+                                stroke: new Stroke({
+                                    width: properties.max_speed / 10,
+                                    color: "white"})
+                            });
+
+                        feat.setProperties(properties);
+                        feat.setId(dataSet.id + "-street-" + index);
+                        feat.set("type", this.type);
+                        feat.set("source", dataSet.id);
+                        feat.set("featType", "street");
+                        feat.set("dataset", dataSet.dataset);
+                        feat.setStyle(streetStyle);
+
+                        this.source.addFeature(feat);
+                    }
+                });
+            }
+
             this.source.changed();
         },
         rerenderVectorLayer () {
@@ -802,7 +843,7 @@ export default {
                             feature.setStyle(polygonStyle);
                         }
                         else {
-                            feature.setStyle(null);
+                            feature.setStyle(new Style({}));
                         }
                     }
 
@@ -818,7 +859,29 @@ export default {
                             feature.setStyle(polygonStyle);
                         }
                         else {
-                            feature.setStyle(null);
+                            feature.setStyle(new Style({}));
+                        }
+                    }
+
+                    if (feature.get("featType") === "street") {
+                        if (this.showStreets) {
+                            if (feature.get("source") === this.dataSets[this.activeSet].id) {
+                                const stroke = feature.get("max_speed") / 10,
+                                    streetStyle = new Style({
+                                        stroke: new Stroke({
+                                            color: "white",
+                                            width: stroke
+                                        })
+                                    });
+
+                                feature.setStyle(streetStyle);
+                            }
+                            else {
+                                feature.setStyle(new Style({}));
+                            }
+                        }
+                        else {
+                            feature.setStyle(new Style({}));
                         }
                     }
                 });
@@ -831,14 +894,15 @@ export default {
                 if (street.properties.traffic_settings_adjustable) {
                     // adjust speed
                     if (street.properties.max_speed === 30) {
-                        street.properties.max_speed = parseInt(this.maxSpeed30);
-                    } else if (street.properties.max_speed === 50) {
-                        street.properties.max_speed = parseInt(this.maxSpeed50);
+                        street.properties.max_speed = parseInt(this.maxSpeed30, 10);
+                    }
+                    else if (street.properties.max_speed === 50) {
+                        street.properties.max_speed = parseInt(this.maxSpeed50, 10);
                     }
 
                     // adjust traffic amounts
-                    street.properties.truck_traffic_daily = street.properties.truck_traffic_daily * (parseInt(this.trafficQuota)/100);
-                    street.properties.car_traffic_daily = street.properties.car_traffic_daily * (parseInt(this.trafficQuota)/100);
+                    street.properties.truck_traffic_daily = street.properties.truck_traffic_daily * (parseInt(this.trafficQuota, 10) / 100);
+                    street.properties.car_traffic_daily = street.properties.car_traffic_daily * (parseInt(this.trafficQuota, 10) / 100);
                 }
             });
 
@@ -952,6 +1016,13 @@ export default {
             else {
                 this.activeSet = value;
             }
+        },
+        resetInputs () {
+            this.windSpeed = 40;
+            this.windDirection = 180;
+            this.maxSpeed50 = 50;
+            this.maxSpeed30 = 30;
+            this.trafficQuota = 50;
         },
         removeSet (activeSet) {
             this.removeFeaturesFromLayer(this.dataSets[activeSet].dataset);
@@ -1114,17 +1185,38 @@ export default {
                         >
                             <i class="bi bi-pencil-square" />
                         </button>-->
+                        <div
+                            v-if="dataSets[activeSet] && dataSets[activeSet].type === 'noise' && dataSets[activeSet].results"
+                            class="input"
+                        >
+                            <!--eslint-disable-next-line-->
+                            <input
+                                id="show_streets"
+                                v-model="showStreets"
+                                type="checkbox"
+                            >
+                            <div class="label">
+                                <p>{{ $t('additional:modules.tools.windSimulation.showStreets') }}</p>
+                            </div>
+                        </div>
                         <div class="input">
                             <!--eslint-disable-next-line-->
                             <input
                                 id="show_drawing"
                                 type="checkbox"
+                                checked
                                 @change="toggleGrid($event.target.checked)"
                             >
                             <div class="label">
                                 <p>{{ $t('additional:modules.tools.windSimulation.showGrid') }}</p>
                             </div>
                         </div>
+                        <button
+                            class="reset_button"
+                            @click="resetInputs"
+                        >
+                            <i class="bi bi-arrow-counterclockwise" />
+                        </button>
                     </div>
                     <template v-if="type === 'wind'">
                         <h5 class="break_title">
@@ -1153,6 +1245,7 @@ export default {
                                         :min="min"
                                         :max="max"
                                         value="50"
+                                        step="10"
                                         class="simulation_slider slider"
                                     >
                                 </div>
@@ -1184,9 +1277,10 @@ export default {
                                         id="windSpeed_slider"
                                         v-model="windDirection"
                                         type="range"
-                                        min="1"
+                                        min="0"
                                         max="360"
                                         value="180"
+                                        step="15"
                                         class="simulation_slider slider"
                                     >
                                 </div>
@@ -1194,9 +1288,23 @@ export default {
                                     {{ windDirection }}° {{ calculateDirection(windDirection) }}
                                 </p>
                             </div>
+                            <div
+                                v-if="noDrawing"
+                                class="hint"
+                            >
+                                <i class="bi bi-exclamation-triangle" />
+                                <p>{{ $t('additional:modules.tools.windSimulation.noDrawing') }}</p>
+                            </div>
+                            <div
+                                v-if="!windSpeed || !windDirection"
+                                class="hint"
+                            >
+                                <i class="bi bi-exclamation-triangle" />
+                                <p>{{ $t('additional:modules.tools.windSimulation.noParams') }}</p>
+                            </div>
                             <button
                                 class="wide run_sim"
-                                :class="{disabled: noDrawing}"
+                                :class="{disabled: noDrawing || !windSpeed || !windDirection}"
                                 @click="simulateWind()"
                             >
                                 <i class="bi bi-wind" />
@@ -1303,9 +1411,23 @@ export default {
                                 </p>
                             </div>
                             <div class="section simulation">
+                                <div
+                                    v-if="noDrawing"
+                                    class="hint"
+                                >
+                                    <i class="bi bi-exclamation-triangle" />
+                                    <p>{{ $t('additional:modules.tools.windSimulation.noDrawing') }}</p>
+                                </div>
+                                <div
+                                    v-if="!trafficQuota || !maxSpeed30 || !maxSpeed50"
+                                    class="hint"
+                                >
+                                    <i class="bi bi-exclamation-triangle" />
+                                    <p>{{ $t('additional:modules.tools.windSimulation.noParams') }}</p>
+                                </div>
                                 <button
                                     class="wide"
-                                    :class="{disabled: noDrawing}"
+                                    :class="{disabled: noDrawing || !trafficQuota || !maxSpeed30 || !maxSpeed50}"
                                     @click="simulateNoise()"
                                 >
                                     <i class="bi bi-car-front" />
@@ -1325,6 +1447,7 @@ export default {
                             v-if="dataSets.length && dataSets[activeSet]"
                             class="result set"
                         >
+                            <!--eslint-disable-next-line-->
                             <div
                                 v-if="dataSets[activeSet].img"
                                 class="image_placeholder"
@@ -1539,6 +1662,7 @@ export default {
                             {{ $t('additional:modules.tools.windSimulation.Ablehnen') }}
                         </button>
                     </div>
+                    <!--eslint-disable-next-line-->
                     <div
                         class="cancelFix"
                         @click="cancelFix"
@@ -1632,6 +1756,30 @@ export default {
             margin:0px 0px 10px 0px;
             padding:20px 0px;
             // border-bottom:1px solid #ccc;
+
+            .hint {
+                display:flex;
+                flex-flow:row wrap;
+                justify-content:center;
+                padding:5px;
+                width:70%;
+                border-radius:5px;
+                background: #F0DA2E;
+                margin: 30px auto 5px auto;
+                align-items: baseline;
+
+                i {
+                    color:lightcoral;
+                    flex:20px;
+                    flex-grow:0;
+                    margin-right:5px;
+                }
+
+                p {
+                    flex:auto;
+                    flex-grow:0;
+                }
+            }
 
             .section_head {
                 flex:1 0 100%;
@@ -1777,6 +1925,15 @@ export default {
                 button {
                     margin-right:3px;
                 }
+
+                .reset_button {
+                    border: 1px solid #ccc;
+                    border-radius: 5px;
+                    width: 30px;
+                    height: 30px;
+                    margin-left: 20px;
+                    background: whitesmoke;
+                }
             }
 
             &.params {
@@ -1812,7 +1969,7 @@ export default {
                 }
 
                 .run_sim {
-                    margin:30px 0px;
+                    margin:10px 0px;
                 }
             }
 

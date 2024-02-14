@@ -4,13 +4,12 @@ import axios from "axios";
  * Service with helper functions for API requests
  */
 class ApiService {
-    url = "https://api.city-scope.hcu-hamburg.de/cut-mock/";
-    // url = "https://api.city-scope.hcu-hamburg.de/";   // prod url
-    // urlWindSuffix = "trigger_calculation_wind";
-    // urlNoiseSuffix = "trigger_calculation_noise";
+    //url = "https://api.city-scope.hcu-hamburg.de/cut-mock/";
+    url = "https://api.city-scope.hcu-hamburg.de/";   // prod url
+    //url = "https://localhost:";   // prod url
 
     // TODO add "cut-public-api" to url and use "wind" or "noise" with a param like taskType instead of using suffix
-    urlWindSuffix = "cut-public-api/wind";
+    urlWindSuffix = "cut-public-api/infrared";
     urlNoiseSuffix = "cut-public-api/noise";
     buildingsUrl = "https://api.city-scope.hcu-hamburg.de/cut-sim-data-provider";
 
@@ -101,7 +100,7 @@ class ApiService {
     getTaskStatus (taskId, taskType, access_token) {
 
         if (taskType === "noise") {
-            return axios.get(`${this.url}${this.urlNoiseSuffix}/jobs/${taskId}/status`, {
+            return axios.get(`${this.url}${this.urlNoiseSuffix}/jobs/${taskId}`, {
                 headers: {
                     "Content-Type": "application/json",
                     "Accept": "*/*",
@@ -110,7 +109,7 @@ class ApiService {
             });
         }
 
-        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}/status`, {
+        return axios.get(`${this.url}${this.urlWindSuffix}/jobs/${taskId}`, {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "*/*",
@@ -119,21 +118,6 @@ class ApiService {
         });
     }
 
-    /**
-     * get tasks status
-     * @param {String} taskId - the id of the tast in the api
-     * @param {*} access_token API Access Token
-     * @returns {Promise<any> | null} request response
-     */
-    getTaskStatusNoise (taskId, access_token) {
-        return axios.get(`${this.url}${this.urlNoiseSuffix}/jobs/${taskId}/status`, {
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "*/*",
-                "Authorization": access_token
-            }
-        });
-    }
 
     /**
      * get tasks status

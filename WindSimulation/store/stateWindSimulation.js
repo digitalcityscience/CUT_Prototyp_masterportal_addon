@@ -35,14 +35,18 @@ const state = {
     isVisibleInMenu: true,
     initialWidth: 500,
     deactivateGFI: true,
-    // url: "https://api.city-scope.hcu-hamburg.de/",
-    url: "https://api.city-scope.hcu-hamburg.de/cut-mock/",
-    urlWindSuffix: "cut-public-api/wind",
-    urlNoiseSuffix: "cut-public-api/noise",
+    url: "https://api.city-scope.hcu-hamburg.de/cut-public-api/",
+    //url: "http://localhost:8888/cut-public-api/",   // local
+    //url: "http://localhost:800",
+    //url: "https://api.city-scope.hcu-hamburg.de/cut-mock/",
+    //urlWindSuffix: "https://api.city-scope.hcu-hamburg.de/cut-mock/cut-public-api/wind",  // mock-api
+    //urlWindSuffix: "4/infrared",  // local
+    //urlNoiseSuffix: "2/noise",
+    urlWindSuffix: "infrared",  // local
+    urlNoiseSuffix: "noise",
     // url: "https://api.city-scope.hcu-hamburg.de/cut-mock/",
     // url: "https://dcs.creative-collective.de/",
-    // urlWindSuffix: "trigger_calculation_wind",
-    // urlNoiseSuffix: "trigger_calculation_noise",
+    
     colorSpace: {
         wind: {
             "0": [69, 140, 191, 0.75],

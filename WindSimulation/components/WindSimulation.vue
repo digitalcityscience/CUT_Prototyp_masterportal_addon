@@ -20,15 +20,16 @@ import Select from "ol/interaction/Select";
 import {pointerMove} from "ol/events/condition";
 import intersect from "@turf/intersect";
 import buffer from "@turf/buffer";
-import lineSplit from "@turf/line-split";
-import polygonToLine from "@turf/polygon-to-line";
-import booleanWithin from "@turf/boolean-within";
+import NoiseModal from "../contents/noise.vue";
+import WindModal from "../contents/wind.vue";
 
 export default {
     name: "WindSimulation",
     components: {
         AuthLogIn,
-        ToolTemplate
+        ToolTemplate,
+        WindModal,
+        NoiseModal
     },
     data () {
         return {
@@ -58,10 +59,16 @@ export default {
             maxSpeed30: 30,
             trafficQuota: 50,
             img: null,
+            // these are for the error modal
             modalActive: false,
             modalMessage: null,
+            // these are for the info modal
+            showModal: false,
+            modalContent: null,
+            windModel: null,
             fixedExtent: null,
-            logout: false
+            logout: false,
+            showAllOfType: false
         };
     },
     computed: {
@@ -72,6 +79,11 @@ export default {
         },
         dataSetsLength () {
             return this.dataSets.length;
+        },
+        hasMultipleSetsSingleWithType () {
+            const countOfType = this.dataSets.filter(dataset => dataset.type === this.type).length;
+
+            return countOfType >= 2;
         }
     },
     watch: {
@@ -81,6 +93,11 @@ export default {
             }
             else {
                 this.toggleGrid(false);
+            }
+        },
+        type () {
+            if (this.showAllOfType) {
+                this.rerenderForShowAll();
             }
         },
         showGrid () {
@@ -135,6 +152,14 @@ export default {
         },
         showStreets () {
             this.rerenderVectorLayer();
+        },
+        showAllOfType () {
+            if (this.showAllOfType) {
+                this.rerenderForShowAll();
+            }
+            else {
+                this.rerenderVectorLayer();
+            }
         }
     },
     created () {
@@ -156,11 +181,13 @@ export default {
                 loginSaved = localStorage.getItem("loginSaved"),
                 oldAccessToken = localStorage.getItem("oldAccessToken");
 
-            if (loginSaved && refreshToken) {
+
+            if (loginSaved && refreshToken && oldAccessToken) {
                 try {
                     const response = await AuthService.refresh(refreshToken, oldAccessToken);
 
                     if (response.access_token) {
+                        localStorage.setItem("oldAccessToken", response.access_token);
                         this.setAccessToken(response.access_token);
                         this.setAuthenticated(true);
                     }
@@ -717,7 +744,6 @@ export default {
                     return response.data.status;
                 }
                 else if (response.data.status === "PENDING") {
-                    console.log("again in 2sec");
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 }
                 else {
@@ -888,6 +914,28 @@ export default {
 
                 this.source.changed();
             }
+        },
+        rerenderForShowAll () {
+            if (this.source.getFeatures().length) {
+                this.source.getFeatures().forEach(feature => {
+                    if (feature.get("featType") === "simulation" && feature.get("type") === this.type) {
+                        const color = feature.get("styling"),
+                            polygonStyle = new Style({
+                                fill: new Fill({
+                                    color: color
+                                })
+                            });
+
+                        feature.setStyle(polygonStyle);
+                    }
+
+                    else {
+                        feature.setStyle(new Style({}));
+                    }
+                });
+            }
+
+            this.source.changed();
         },
         adjustStreets (streets) {
             streets.features.forEach(street => {
@@ -1064,6 +1112,7 @@ export default {
         },
         logoutUser () {
             AuthService.logout(this.refreshToken, this.accessToken);
+            this.setAuthenticated(false);
             this.close();
         },
         /**
@@ -1219,10 +1268,20 @@ export default {
                         </button>
                     </div>
                     <template v-if="type === 'wind'">
+                        <div class="section info">
+                            <h4>{{ $t('additional:modules.tools.windSimulation.header.wind') }}</h4>
+                            <p>{{ $t('additional:modules.tools.windSimulation.contents.wind') }}</p>
+                        </div>
                         <h5 class="break_title">
                             {{ $t('additional:modules.tools.windSimulation.settings') }}
                         </h5>
                         <div class="section params">
+                            <button
+                                class="info_button"
+                                @click="showModal = true"
+                            >
+                                <i class="bi bi-info" />
+                            </button>
                             <div class="section_head">
                                 <i class="bi bi-wind" />
                                 <p><strong>{{ $t('additional:modules.tools.windSimulation.params_wind') }}</strong></p>
@@ -1249,7 +1308,10 @@ export default {
                                         class="simulation_slider slider"
                                     >
                                 </div>
-                                <p class="value">
+                                <p
+                                    class="value"
+                                    :class="{error: !windSpeed}"
+                                >
                                     {{ windSpeed }} km/h
                                 </p>
                             </div>
@@ -1284,7 +1346,10 @@ export default {
                                         class="simulation_slider slider"
                                     >
                                 </div>
-                                <p class="value">
+                                <p
+                                    class="value"
+                                    :class="{error: !windDirection}"
+                                >
                                     {{ windDirection }}° {{ calculateDirection(windDirection) }}
                                 </p>
                             </div>
@@ -1314,14 +1379,20 @@ export default {
                     </template>
                     <template v-if="type === 'noise'">
                         <div class="section info">
-                            <h4>TRAFFIC VOLUME</h4>
-                            <p>Volume of motorized traffic volume according to current planning assumptions (predicted traffic volume). Selecting 25% for example shows 25% of the predicted traffic volume. This is concerning traffic for the selected area.</p>
+                            <h4>{{ $t('additional:modules.tools.windSimulation.header.noise') }}</h4>
+                            <p>{{ $t('additional:modules.tools.windSimulation.contents.noise') }}</p>
                         </div>
                         <h5 class="break_title">
                             {{ $t('additional:modules.tools.windSimulation.settings') }}
                         </h5>
                         <!-- eslint-disable-next-line -->
                         <div class="section params">
+                            <button
+                                class="info_button"
+                                @click="showModal = true"
+                            >
+                                <i class="bi bi-info" />
+                            </button>
                             <div class="section_head">
                                 <i class="bi bi-car-front" />
                                 <p><strong>{{ $t('additional:modules.tools.windSimulation.params_noise') }}</strong></p>
@@ -1352,10 +1423,14 @@ export default {
                                             class="simulation_slider slider"
                                         >
                                     </div>
-                                    <p class="value">
+                                    <p
+                                        class="value"
+                                        :class="{error: !maxSpeed30}"
+                                    >
                                         {{ maxSpeed30 }} km/h
                                     </p>
-                                </div><div class="row">
+                                </div>
+                                <div class="row">
                                     <div class="road_sign">
                                         50
                                     </div>
@@ -1380,11 +1455,15 @@ export default {
                                             class="simulation_slider slider"
                                         >
                                     </div>
-                                    <p class="value">
+                                    <p
+                                        class="value"
+                                        :class="{error: !maxSpeed50}"
+                                    >
                                         {{ maxSpeed50 }} km/h
                                     </p>
                                 </div>
                             </span>
+                            <p><strong>{{ $t('additional:modules.tools.windSimulation.params_noise_2') }}</strong></p>
                             <div class="row">
                                 <div class="input">
                                     <div class="labels">
@@ -1406,7 +1485,10 @@ export default {
                                         class="simulation_slider slider"
                                     >
                                 </div>
-                                <p class="value">
+                                <p
+                                    class="value"
+                                    :class="{error: !trafficQuota}"
+                                >
                                     {{ trafficQuota }} %
                                 </p>
                             </div>
@@ -1603,12 +1685,30 @@ export default {
                         v-if="dataSets.length"
                         class="section pagination"
                     >
-                        <div class="pagination_wrapper">
+                        <div
+                            v-if="hasMultipleSetsSingleWithType"
+                            class="show_all"
+                        >
+                            <input
+                                id="show_all_of_type"
+                                v-model="showAllOfType"
+                                type="checkbox"
+                            >
+                            <label for="show_all_of_type">{{ $t('additional:modules.tools.windSimulation.showAll') }} {{ type }}</label>
+                        </div>
+                        <div
+                            class="pagination_wrapper"
+                            :class="{disabled: showAllOfType}"
+                        >
                             <button
                                 v-for="(set, i) in dataSets"
                                 :key="set.id"
                                 class="pagination_point"
-                                :class="{active: i === activeSet}"
+                                :class="{
+                                    highlight: showAllOfType && set.type === type,
+                                    blur: showAllOfType && set.type !== type,
+                                    active: i === activeSet
+                                }"
                                 @click="setPagination('set', i)"
                             >
                                 <p>{{ i + 1 }}</p>
@@ -1633,6 +1733,32 @@ export default {
                             </button>
                         </div>
                     </div>
+                </div>
+                <div
+                    v-if="showModal"
+                    id="info_modal"
+                    class="info_modal"
+                    @close="showModal = false"
+                >
+                    <div class="modal_body">
+                        <template v-if="type === 'noise'">
+                            <NoiseModal />
+                        </template>
+                        <template v-if="type === 'wind'">
+                            <WindModal />
+                        </template>
+                        <button
+                            class="cancel"
+                            @click="showModal = false"
+                        >
+                            <i class="bi bi-x" />
+                        </button>
+                    </div>
+                    <!--eslint-disable-next-line-->
+                    <div
+                        class="close_modal"
+                        @click="showModal = false"
+                    />
                 </div>
                 <div
                     v-if="modalActive"
@@ -1749,6 +1875,7 @@ export default {
             }
         }
         .section {
+            position:relative;
             width:100%;
             display:flex;
             flex-flow:row wrap;
@@ -1756,6 +1883,18 @@ export default {
             margin:0px 0px 10px 0px;
             padding:20px 0px;
             // border-bottom:1px solid #ccc;
+
+            .info_button {
+                width:30px;
+                flex: 0 0 30px;
+                height:30px;
+                position:absolute;
+                top:-35px;
+                right:0;
+                font-size:16px;
+                border-radius:5px;
+                border:none;
+            }
 
             .hint {
                 display:flex;
@@ -1776,6 +1915,7 @@ export default {
                 }
 
                 p {
+                    font-size:12px;
                     flex:auto;
                     flex-grow:0;
                 }
@@ -1989,6 +2129,10 @@ export default {
                         font-size:100%;
                         padding:5px;
                         text-align:center;
+
+                        &.error {
+                            outline:1px solid red;
+                        }
                     }
 
                 .input {
@@ -2219,11 +2363,27 @@ export default {
                 }
             }
 
+            .show_all {
+                display:flex;
+                align-items:center;
+                margin: 5px 5px 10px auto;
+
+                label {
+                    margin-left:10px;
+                }
+            }
+
             .pagination_wrapper {
                 flex: 1 0 100%;
                 display:flex;
                 flex-flow:row wrap;
                 justify-content:flex-end;
+
+                &.disabled {
+                    pointer-events:none;
+                    opacity: 0.75;
+                    filter:blur(1px);
+                }
 
                 .pagination_point {
                     flex:0 0 30px;
@@ -2233,6 +2393,15 @@ export default {
                     background:#ccc;
                     border:none;
                     padding:0;
+
+                    &.highlight {
+                        border:1px solid #222;
+                    }
+
+                    &.blur {
+                        opacity:0.5,
+                    }
+
                     &.active {
                         background:$prime_blue;
 
@@ -2265,7 +2434,7 @@ export default {
             }
         }
 
-        #wind_modal {
+        #wind_modal, #info_modal {
             position:fixed;
             width:100vw;
             height:100vh;
@@ -2282,6 +2451,7 @@ export default {
                 left:50%;
                 width:500px;
                 height:auto;
+                max-height:65vh;
                 transform: translate(-50%,-50%);
                 border-radius: 5px;
                 padding: 30px;
@@ -2289,6 +2459,7 @@ export default {
                 -webkit-box-shadow: 0px 5px 15px -10px rgba(0,0,0,0.75);
                 -moz-box-shadow: 0px 5px 15px -10px rgba(0,0,0,0.75);
                 box-shadow: 0px 5px 15px -10px rgba(0,0,0,0.75);
+                overflow-y:auto;
 
                 p {
                   color:red;
@@ -2299,9 +2470,18 @@ export default {
                     margin:10px 0px;
                   }
                 }
+
+                .cancel {
+                    position:absolute;
+                    top:5px;
+                    right:5px;
+                    border:none;
+                    border-radius:5px;
+                    font-size:16px;
+                }
             }
 
-            .cancelFix {
+            .cancelFix, .close_modal {
                 position:absolute;
                 top:0;
                 left:0;

@@ -35,7 +35,7 @@ class AuthService {
                 headers: {
                     "Content-Type": "application/json",
                     "Accept": "*/*",
-                    "Authorization": access_token
+                    "Authorization": "Bearer " + access_token
                 }
             });
 

@@ -33,11 +33,19 @@ export default {
                         this.setAuthenticated(true);
                     }
 
+                    console.log(response);
+
                     if (this.saveLogin && response.refresh_token) {
-                        localStorage.setItem("oldAccessToken", response.refresh_token);
+                        localStorage.setItem("oldAccessToken", response.access_token);
                         localStorage.setItem("loginSaved", true);
                         localStorage.setItem("dcs_user", this.email);
                         this.setRefreshToken(response.refresh_token);
+                    }
+
+                    if (!this.saveLogin) {
+                        localStorage.removeItem("loginSaved");
+                        localStorage.removeItem("oldAccessToken");
+                        localStorage.removeItem("refreshToken");
                     }
 
                 }

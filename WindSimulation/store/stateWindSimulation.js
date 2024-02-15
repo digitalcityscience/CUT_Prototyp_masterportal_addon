@@ -36,7 +36,7 @@ const state = {
     initialWidth: 500,
     deactivateGFI: true,
     url: "https://api.city-scope.hcu-hamburg.de/cut-public-api/",
-    urlWindSuffix: "infrared",  // local
+    urlWindSuffix: "infrared",
     urlNoiseSuffix: "noise",
     
     colorSpace: {

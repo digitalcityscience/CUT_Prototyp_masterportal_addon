@@ -4,13 +4,10 @@ import axios from "axios";
  * Service with helper functions for API requests
  */
 class ApiService {
-    //url = "https://api.city-scope.hcu-hamburg.de/cut-mock/";
-    url = "https://api.city-scope.hcu-hamburg.de/";   // prod url
-    //url = "https://localhost:";   // prod url
+    url = "https://api.city-scope.hcu-hamburg.de/cut-public-api/";   // prod url
 
-    // TODO add "cut-public-api" to url and use "wind" or "noise" with a param like taskType instead of using suffix
-    urlWindSuffix = "cut-public-api/infrared";
-    urlNoiseSuffix = "cut-public-api/noise";
+    urlWindSuffix = "infrared";
+    urlNoiseSuffix = "noise";
     buildingsUrl = "https://api.city-scope.hcu-hamburg.de/cut-sim-data-provider";
 
 

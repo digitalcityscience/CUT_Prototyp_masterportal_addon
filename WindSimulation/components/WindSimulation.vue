@@ -649,10 +649,10 @@ export default {
                     buildings: buildings.data
                 },
                 task = await this.apiService.postWindData(prepareApiDataSet, this.accessToken),
-                taskId = task.data.job_id,
+                taskId = task.data.jobID,
                 taskStatus = await this.getTaskStatus(taskId, "wind");
 
-            if (taskStatus === "SUCCESS") {
+            if (taskStatus === "successful") {
                 const taskResult = await this.apiService.getTaskResult(taskId, this.accessToken);
 
                 this.results = taskResult.data.result.geojson.features;
@@ -700,14 +700,6 @@ export default {
                     showDrawing: this.showDrawing,
                     img: null
                 },
-                /* apiSet for Mock-API
-                prepareApiDataSet = {
-                    bbox: format.writeFeatureObject(feature, {dataProjection: "EPSG:4326", featureProjection: this.projection}).geometry.coordinates[0],
-                    calculation_settings: {
-                        max_speed: this.maxSpeed50,
-                        traffic_quota: this.trafficQuota
-                    }
-                },*/
                 streets = await this.apiService.getStreets(featureCollection, this.accessToken),
                 buildings = await this.apiService.getBuildings(featureCollection, this.accessToken),
                 prepareApiDataSet = {
@@ -715,10 +707,10 @@ export default {
                     roads: this.adjustStreets(streets.data)
                 },
                 task = await this.apiService.postNoiseData(prepareApiDataSet, this.accessToken),
-                taskId = task.data.job_id,
+                taskId = task.data.jobID,
                 taskStatus = await this.getTaskStatus(taskId, "noise");
 
-            if (taskStatus === "SUCCESS") {
+            if (taskStatus === "successful") {
                 const taskResult = await this.apiService.getTaskResultNoise(taskId, this.accessToken);
 
                 this.results = taskResult.data.result.geojson.features;
@@ -740,10 +732,11 @@ export default {
             while (loop) {
                 const response = await this.apiService.getTaskStatus(taskId, taskType, this.accessToken);
 
-                if (response.data.status === "SUCCESS" || response.data.job_state === "FAILURE") {
+                if (response.data.status === "successful" || response.data.job_state === "failed") {
                     return response.data.status;
                 }
-                else if (response.data.status === "PENDING") {
+                else if (response.data.status === "running") {
+                    console.log("again in 2sec");
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 }
                 else {

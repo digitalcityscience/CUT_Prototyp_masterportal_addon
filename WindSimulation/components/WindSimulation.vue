@@ -96,6 +96,8 @@ export default {
             }
         },
         type () {
+            this.resetInputs();
+
             if (this.showAllOfType) {
                 this.rerenderForShowAll();
             }
@@ -1562,6 +1564,10 @@ export default {
                                         <p>
                                             Sitting Long
                                         </p>
+                                        <img
+                                            src="assets/img/wind_1.png"
+                                            alt="Sitting Long"
+                                        >
                                     </li>
                                     <li class="legend_unit">
                                         <p class="italic">
@@ -1571,6 +1577,10 @@ export default {
                                         <p>
                                             Sitting Short
                                         </p>
+                                        <img
+                                            src="assets/img/wind_2.png"
+                                            alt="Sitting Short"
+                                        >
                                     </li>
                                     <li class="legend_unit">
                                         <p class="italic">
@@ -1580,6 +1590,10 @@ export default {
                                         <p>
                                             Walking Slow
                                         </p>
+                                        <img
+                                            src="assets/img/wind_3.png"
+                                            alt="Walking Slow"
+                                        >
                                     </li>
                                     <li class="legend_unit">
                                         <p class="italic">
@@ -1589,6 +1603,10 @@ export default {
                                         <p>
                                             Walking Fast
                                         </p>
+                                        <img
+                                            src="assets/img/wind_4.png"
+                                            alt="Walking Fast"
+                                        >
                                     </li>
                                     <li class="legend_unit">
                                         <p class="italic">
@@ -1598,6 +1616,10 @@ export default {
                                         <p>
                                             Uncomfortable
                                         </p>
+                                        <img
+                                            src="assets/img/wind_5.png"
+                                            alt="Uncomfortable"
+                                        >
                                     </li>
                                     <li class="legend_unit">
                                         <p class="italic">
@@ -1607,6 +1629,10 @@ export default {
                                         <p>
                                             Dangerous
                                         </p>
+                                        <img
+                                            src="assets/img/wind_6.png"
+                                            alt="Dangerous"
+                                        >
                                     </li>
                                 </div>
                             </div>
@@ -2219,6 +2245,7 @@ export default {
                     justify-content:space-between;
 
                     .legend_unit {
+                        position:relative;
                         display: flex;
                         flex-flow: row wrap;
                         flex-basis: 15%;
@@ -2231,6 +2258,15 @@ export default {
                             &.italic {
                                 font-style:italic;
                             }
+                        }
+
+                        img {
+                            width: 15px;
+                            height: auto;
+                            position: absolute;
+                            top: 50%;
+                            left: 5px;
+                            transform: translateY(-50%);
                         }
 
                         .color_block {

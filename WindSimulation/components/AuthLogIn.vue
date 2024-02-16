@@ -33,7 +33,7 @@ export default {
                         this.setAuthenticated(true);
                     }
 
-                    console.log(response);
+                    // console.log(response);
 
                     if (this.saveLogin && response.refresh_token) {
                         localStorage.setItem("oldAccessToken", response.access_token);

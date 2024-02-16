@@ -23,7 +23,7 @@
 
     <h4>Warum erscheinen die Ergebnisse kachelförmig?</h4>
     <p>
-        Die angezeigten Ergebnisse werden in Echtzeit durchgeführt. Trotz erheblicher Zeitersparnis, die durch das ML-trainierte Modell ermöglicht wird, ist die Berechnung immer noch rechenintensiv. Aus diesem Grund führt der InFraRed-Server Berechnungen in Stapeln von bis zu 500x500m großen quadratischen Kacheln durch. Informationen über den Gebäudestandort und die Höhe werden als geografische Daten von der lokalen CityPyO an die InFraRed-API gesendet. Die Berechnungsergebnisse werden dann zurückgesendet und im Master Portal-Frontend angezeigt.
+        Die angezeigten Ergebnisse werden in Echtzeit durchgeführt. Trotz erheblicher Zeitersparnis, die durch das ML-trainierte Modell ermöglicht wird, ist die Berechnung immer noch rechenintensiv. Aus diesem Grund führt der InFraRed-Server Berechnungen in Stapeln von bis zu 500x500m großen quadratischen Kacheln durch. Informationen über den Gebäudestandort und die Höhe werden als geografische Daten an die InFraRed-API gesendet. Die Berechnungsergebnisse werden dann zurückgesendet und im Master Portal-Frontend angezeigt.
     </p>
 </div>
 

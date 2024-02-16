@@ -1546,7 +1546,7 @@ export default {
                         <template v-if="type === 'wind' && dataSets.length">
                             <div class="legend wind">
                                 <p class="header">
-                                    <strong>Legend</strong>
+                                    <strong>Legende</strong>
                                 </p>
                                 <div class="legend_wrapper">
                                     <li class="legend_unit">
@@ -1554,13 +1554,13 @@ export default {
                                             < 2.5m/s
                                         </p>
                                         <div class="color_block blue_1" />
-                                        <p>
-                                            Sitting Long
-                                        </p>
                                         <img
                                             src="assets/img/wind_1.png"
                                             alt="Sitting Long"
                                         >
+                                        <p>
+                                            Sitzen (langer Aufenthalt)
+                                        </p>
                                     </li>
                                     <li class="legend_unit">
                                         <p class="italic">
@@ -1568,7 +1568,7 @@ export default {
                                         </p>
                                         <div class="color_block blue_2" />
                                         <p>
-                                            Sitting Short
+                                            Sitzen (kurzer Aufenthalt)
                                         </p>
                                         <img
                                             src="assets/img/wind_2.png"
@@ -1581,7 +1581,7 @@ export default {
                                         </p>
                                         <div class="color_block green" />
                                         <p>
-                                            Walking Slow
+                                            Gehen <br> (langsam)
                                         </p>
                                         <img
                                             src="assets/img/wind_3.png"
@@ -1594,7 +1594,7 @@ export default {
                                         </p>
                                         <div class="color_block yellow" />
                                         <p>
-                                            Walking Fast
+                                            Gehen <br> (schnell)
                                         </p>
                                         <img
                                             src="assets/img/wind_4.png"
@@ -1607,7 +1607,7 @@ export default {
                                         </p>
                                         <div class="color_block orange" />
                                         <p>
-                                            Uncomfortable
+                                            Unkomfortabler <br> Aufenthalt
                                         </p>
                                         <img
                                             src="assets/img/wind_5.png"
@@ -1620,7 +1620,7 @@ export default {
                                         </p>
                                         <div class="color_block red" />
                                         <p>
-                                            Dangerous
+                                            Möglicherweise <br> gefährlich
                                         </p>
                                         <img
                                             src="assets/img/wind_6.png"
@@ -1633,7 +1633,7 @@ export default {
                         <template v-if="type === 'noise' && dataSets.length">
                             <div class="legend noise">
                                 <p class="header">
-                                    <strong>Legend</strong>
+                                    <strong>Legende</strong>
                                 </p>
                                 <div class="legend_wrapper">
                                     <li class="legend_unit">
@@ -2236,6 +2236,7 @@ export default {
                     display:flex;
                     flex-flow:row wrap;
                     justify-content:space-between;
+                    align-items: start;
 
                     .legend_unit {
                         position:relative;
@@ -2259,7 +2260,7 @@ export default {
                             position: absolute;
                             top: 50%;
                             left: 5px;
-                            transform: translateY(-50%);
+                            transform: translateY(-100%);
                         }
 
                         .color_block {

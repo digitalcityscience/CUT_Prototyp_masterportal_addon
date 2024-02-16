@@ -3,11 +3,11 @@
         "tools": {
             "windSimulation": {
                 "title": "DCS-Simulationen",
-                "sub_title": "Cockpit für kollaborative Stadtplanung",
+                "sub_title": "CUT-PROTOTYP",
                 "title_wind": "Wind",
                 "title_noise": "Lärm",
                 "title_pedestrians": "ABM",
-                "title_stormwater": "Sturmwasser",
+                "title_stormwater": "Starkregen",
                 "title_sun": "Sonne",
                 "showGrid": "Raster ein-/ausblenden",
                 "showStreets": "Straßen ein-/ausblenden",
@@ -34,7 +34,7 @@
                 },
                 "contents": {
                     "noise": "Simulation des Verkehrslärms über bestehenden und geplanten Straßen basierend auf der Geschwindigkeit und dem Verkehrsaufkommen von Kraftfahrzeugen.",
-                    "wind": "Die Messung der Auswirkungen des Windes über dem offenen städtischen Raum ermöglicht ein besseres Verständnis der menschlichen Komfortniveaus, basierend auf der Windgeschwindigkeit und -richtung in Gehhöhe (1,75 Meter über dem Bodenniveau)."
+                    "wind": "Die Simulation der Windverhältnisse über dem offenen städtischen Raum ermöglicht ein besseres Verständnis der menschlichen Komfortniveaus, basierend auf der Windgeschwindigkeit und -richtung in Gehhöhe (1,75 Meter über dem Bodenniveau)."
                 },
                 "auth": {
                     "mail": "Benutzer",
